@@ -43,6 +43,7 @@
           <button data-type="synth">synth</button>
           <button data-type="guitar">guitar</button>
           <button data-type="vocal">vocal</button>
+          <button data-type="sample">sample</button>
         </div>
        </div>
 
@@ -1353,6 +1354,7 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
         else if (parentTrack.classList.contains('bass')) waveColor = '#ffd93d';
         else if (parentTrack.classList.contains('synth')) waveColor = '#b084f7';
         else if (parentTrack.classList.contains('vocal')) waveColor = '#ff7ac8';
+        else if (parentTrack.classList.contains('sample')) waveColor = '#ff8c00';
     }
 
     // Ha nincs megadva start, akkor a playhead; ha van, akkor az (pl. cut esetén)
