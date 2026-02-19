@@ -280,7 +280,7 @@ function populateAudioSources(track) {
 
 function selectSource(track, btn, picker) {
     const span = track.querySelector('.audio-source');
-    span.textContent = btn.textContent;
+    span.innerHTML = `${btn.textContent}<div class="vu-meter-bg input-vu"></div>`;
     picker.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     picker.style.display = 'none';
@@ -653,6 +653,15 @@ async function handleMonitorClick(btn) {
                 if (outputId !== 'virtual' && typeof audioEl.setSinkId === 'function') {
                     audioEl.setSinkId(outputId).catch(console.warn);
                 }
+
+                // --- ÚJ RÉSZ: BEMENETI VU MÉTER BEKÖTÉSE ---
+                const sourceNode = audioCtx.createMediaStreamSource(stream);
+                const inputAnalyser = audioCtx.createAnalyser();
+                inputAnalyser.fftSize = 256;
+                sourceNode.connect(inputAnalyser); // Bekötjük a mikrofont a mérőbe
+                
+                track.inputAnalyserNode = inputAnalyser;
+
             } catch(err) {
                 alert("Nem sikerült elindítani a mikrofont: " + err.message);
                 btn.classList.remove('active');
@@ -663,6 +672,7 @@ async function handleMonitorClick(btn) {
             audioEl.srcObject.getTracks().forEach(t => t.stop());
             audioEl.srcObject = null;
         }
+        track.inputAnalyserNode = null;
     }
 }
 
@@ -693,7 +703,12 @@ picker.addEventListener('click', (e) => {
           <label>Vol<input type="range" min="0" max="100" value="80"><span class="slider-value">80%</span></label>
           <label>Pan<input type="range" min="-50" max="50" value="0"><span class="slider-value">0</span></label>
         </div>
-        <div class="track-meta"><span class="audio-source">No Input</span><div class="audio-source-picker"></div>
+        <div class="track-meta">
+          <span class="audio-source">
+             No Input
+             <div class="vu-meter-bg input-vu"></div>
+          </span>
+          <div class="audio-source-picker"></div>
           <span class="output">
              No Output
              <div class="vu-meter-bg"></div>
@@ -1672,37 +1687,61 @@ function updateMeters() {
     const tracks = document.querySelectorAll('.track-container');
     
     tracks.forEach(track => {
-        if (!track.analyserNode) return;
+        if (track.analyserNode) {
 
-        const analyser = track.analyserNode;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+           const analyser = track.analyserNode;
+           const bufferLength = analyser.frequencyBinCount;
+           const dataArray = new Uint8Array(bufferLength);
         
-        analyser.getByteTimeDomainData(dataArray);
+           analyser.getByteTimeDomainData(dataArray);
 
-        let max = 0;
-        for (let i = 0; i < bufferLength; i++) {
-            const value = dataArray[i]; 
-            const volume = Math.abs(value - 128); 
-            if (volume > max) max = volume;
-        }
+           let max = 0;
+           for (let i = 0; i < bufferLength; i++) {
+               const value = dataArray[i]; 
+               const volume = Math.abs(value - 128); 
+               if (volume > max) max = volume;
+           }
 
-        let percentage = (max / 128) * 100 * 1.2; 
-        if (percentage > 100) percentage = 100;
+           let percentage = (max / 128) * 100 * 1.2; 
+           if (percentage > 100) percentage = 100;
 
-        const meterBg = track.querySelector('.vu-meter-bg');
-        if (meterBg) {
-             // TRÜKK: Nem a szélességet állítjuk, hanem a vágást!
-             // "inset(top right bottom left)"
-             // Ha 80%-os a jel, akkor jobbról 20%-ot vágunk le (100 - 80).
-             const insetAmount = 100 - percentage;
+           const meterBg = track.querySelector('.vu-meter-bg');
+           if (meterBg) {
+               const insetAmount = 100 - percentage;
              
-             meterBg.style.clipPath = `inset(0 ${insetAmount}% 0 0)`;
-             meterBg.style.webkitClipPath = `inset(0 ${insetAmount}% 0 0)`;
+               meterBg.style.clipPath = `inset(0 ${insetAmount}% 0 0)`;
+               meterBg.style.webkitClipPath = `inset(0 ${insetAmount}% 0 0)`;
              
-             // A színváltó JS kódot (backgroundColor) TÖRÖLD KI INNEN!
-             // Azt most már a CSS gradiens intézi automatikusan.
-        }
+           }
+         }
+         const inMeterBg = track.querySelector('.audio-source .vu-meter-bg');
+        
+         if (track.inputAnalyserNode && inMeterBg) {
+            const inAnalyser = track.inputAnalyserNode;
+            const inBufferLength = inAnalyser.frequencyBinCount;
+            const inDataArray = new Uint8Array(inBufferLength);
+            
+            inAnalyser.getByteTimeDomainData(inDataArray);
+
+            let inMax = 0;
+            for (let i = 0; i < inBufferLength; i++) {
+                const vol = Math.abs(inDataArray[i] - 128); 
+                if (vol > inMax) inMax = vol;
+            }
+
+            // Kicsit érzékenyebb szorzó, hogy a mikrofon is jól látszódjon
+            let inPercentage = (inMax / 128) * 100 * 1.5; 
+            if (inPercentage > 100) inPercentage = 100;
+
+            const inInsetAmount = 100 - inPercentage;
+            inMeterBg.style.clipPath = `inset(0 ${inInsetAmount}% 0 0)`;
+            inMeterBg.style.webkitClipPath = `inset(0 ${inInsetAmount}% 0 0)`;
+            
+         } else if (inMeterBg) {
+            // Ha nincs bekapcsolva a monitor, húzzuk le a csíkot 0-ra (100% vágás)
+            inMeterBg.style.clipPath = `inset(0 100% 0 0)`;
+            inMeterBg.style.webkitClipPath = `inset(0 100% 0 0)`;
+         }
     });
 
     requestAnimationFrame(updateMeters);
