@@ -658,6 +658,15 @@ h1, h2, h3 {
     box-shadow: 0 0 10px #ff7ac8 !important;
 }
 
+/* SAMPLE (Narancssárga) */
+.track-container.sample .audio-clip {
+    border-color: #ff8c00 !important;
+    background: rgba(255, 140, 0, 0.3) !important;
+}
+.track-container.sample .audio-clip.selected-clip {
+    box-shadow: 0 0 10px #ff8c00 !important;
+}
+
 .delete-track {
   position: absolute;
   top: 4px;
@@ -1085,9 +1094,11 @@ h1, h2, h3 {
 .track-container.synth  .track-inspector { border-color: #b084f7; } /* lila */
 .track-container.guitar .track-inspector { border-color: #00ffd5; } /* zöld */
 .track-container.vocal  .track-inspector { border-color: #ff7ac8; } /* rózsaszín */
+.track-container.sample .track-inspector { border-color: #ff8c00; }
 
 .track-container.guitar .track-type { color: #00ffd5; }
 .track-container.drum   .track-type { color: #3fa9f5; }
 .track-container.bass   .track-type { color: #ffd93d; }
 .track-container.synth  .track-type { color: #b084f7; }
 .track-container.vocal  .track-type { color: #ff7ac8; }
+.track-container.sample .track-type { color: #ff8c00; }
