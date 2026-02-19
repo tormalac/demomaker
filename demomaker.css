@@ -815,7 +815,8 @@ h1, h2, h3 {
   cursor: pointer;
 }
 
-.track-meta span.output {
+.track-meta span.output,
+.track-meta span.audio-source {
     position: relative; 
     overflow: hidden;    
     z-index: 1;          
