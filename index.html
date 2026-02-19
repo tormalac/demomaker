@@ -1452,67 +1452,91 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
 }
 
 // --- RECORDING ENGINE ---
-let activeRecorders = []; // Itt tároljuk az épp futó felvételeket
+let activeRecorders = []; 
 
 async function startRecording(startTimeOffset) {
     activeRecorders = [];
-    
-    // Megkeressük az összes "élesített" (Record aktív) sávot
-    const armedTracks = document.querySelectorAll('.track-container:has(.daw-btn.record.active)');
-    
-    for (let track of armedTracks) {
-        // Megnézzük, honnan kapja a hangot (Input picker)
-        const selectedInputBtn = track.querySelector('.audio-source-picker button.selected');
-        const inputId = selectedInputBtn ? selectedInputBtn.dataset.deviceId : 'default';
+    console.log("⏺️ Felvétel indítási kísérlet...");
 
-        if (inputId === 'virtual') continue; // Virtual (MIDI) sávra még nem tudunk audiót venni
+    // Biztonságosabb sávkeresés (a :has() nem minden régebbi böngészőben megy)
+    const allTracks = document.querySelectorAll('.track-container');
+    const armedTracks = Array.from(allTracks).filter(track => {
+        const recBtn = track.querySelector('.daw-btn.record');
+        return recBtn && recBtn.classList.contains('active');
+    });
+
+    console.log(`Talált élesített (Record) sávok száma: ${armedTracks.length}`);
+
+    if (armedTracks.length === 0) {
+        console.warn("Nincs élesített sáv! (Nyomd be a kis piros pöttyöt a sávon)");
+        return;
+    }
+
+    for (let track of armedTracks) {
+        // Melyik inputot választotta a user?
+        const selectedInputBtn = track.querySelector('.audio-source-picker button.selected');
+        const inputId = selectedInputBtn ? selectedInputBtn.dataset.deviceId : null;
+
+        if (inputId === 'virtual') {
+            console.log("Virtual sávra nem veszünk fel audiót.");
+            continue; 
+        }
 
         try {
-            // Elkérjük a mikrofont / hangkártya bemenetet
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: { deviceId: { exact: inputId } } 
-            });
+            // Biztonságos eszköz lekérés (ha nincs konkrét kiválasztva, kéri az alapértelmezettet)
+            const audioConstraints = (inputId && inputId !== 'default') 
+                ? { deviceId: { exact: inputId } } 
+                : true;
+
+            console.log("🎤 Mikrofon kérése...", audioConstraints);
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+            console.log("✅ Mikrofon megkapva!");
 
             const mediaRecorder = new MediaRecorder(stream);
             let audioChunks = [];
 
-            // Adatgyűjtés
             mediaRecorder.ondataavailable = e => {
                 if (e.data.size > 0) audioChunks.push(e.data);
             };
 
-            // Amikor megáll a felvétel, csinálunk belőle egy klipet
             mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); // vagy audio/ogg
-                const arrayBuffer = await audioBlob.arrayBuffer();
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                
-                // Melyik Tick-nél indult a felvétel?
-                const startTick = secondsToTicks(startTimeOffset); 
-                
-                // Klip hozzáadása a DOM-hoz (A meglévő függvényeddel!)
-                const clipsContainer = track.querySelector('.clips');
-                const clipName = "Rec_" + Math.floor(Math.random() * 1000);
-                
-                // Fontos: Az eddigi 'currentPlayTime' helyett most az indulás pillanatát adjuk át
-                addClipToTrack(clipsContainer, audioBuffer, clipName, startTimeOffset);
-                
-                // Leállítjuk a mikrofont, ne fusson a háttérben
-                stream.getTracks().forEach(t => t.stop());
+                console.log("⏹️ Felvétel leállt, adat feldolgozása...");
+                try {
+                    // Dinamikusan a böngésző saját formátumát használjuk (safari miatt fontos!)
+                    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType }); 
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    
+                    console.log("Fájl dekódolása (AudioContext)...");
+                    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                    console.log("✅ Sikeres dekódolás! Klip létrehozása...");
+
+                    const clipsContainer = track.querySelector('.clips');
+                    const clipName = "Rec_" + Math.floor(Math.random() * 1000);
+                    
+                    // Klip kirajzolása a DOM-ba
+                    addClipToTrack(clipsContainer, audioBuffer, clipName, startTimeOffset);
+                    
+                } catch(decodeErr) {
+                    console.error("❌ Hiba az audio feldolgozásakor:", decodeErr);
+                } finally {
+                    // Kamera/Mikrofon lekapcsolása (hogy ne világítson a piros led a gépen)
+                    stream.getTracks().forEach(t => t.stop());
+                }
             };
 
-            // Indítás!
             mediaRecorder.start();
             activeRecorders.push(mediaRecorder);
+            console.log("⏺️ MediaRecorder elindult!");
 
         } catch (err) {
-            console.error("Felvétel hiba a sávon:", err);
+            console.error("❌ Felvétel hiba ezen a sávon (Nincs engedély?):", err);
             track.querySelector('.daw-btn.record').classList.remove('active');
         }
     }
 }
 
 function stopRecording() {
+    console.log(`Leállítás kérése... Aktív felvételek száma: ${activeRecorders.length}`);
     activeRecorders.forEach(recorder => {
         if (recorder.state === 'recording') {
             recorder.stop();
