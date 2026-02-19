@@ -454,6 +454,40 @@ const GRID_MAP = {
   "1/32": 0.125, "1/64": 0.0625 
 };
 
+// ==========================================================
+// --- TICK ENGINE & ADATSTRUKTÚRA (CORE) ---
+// ==========================================================
+const PPQ = 960; // 1 negyed hang = 960 Tick. (1/16-od = 240 Tick)
+
+// Ez lesz a teljes projektünk menthető állapota (később a Save/Open-hez tökéletes)
+let projectState = {
+    bpm: 120,
+    timeSignature: [4, 4],
+    tracks: [] // Ide jönnek majd a sávok és a klipek adatai (pl. {id, type, clips: []})
+};
+
+// --- KONVERTER FÜGGVÉNYEK (A Mágia) ---
+
+// Tick-ből Másodperc (Az Audio API-nak kell)
+function ticksToSeconds(ticks, currentBpm = bpm) {
+    return (ticks / PPQ) * (60 / currentBpm);
+}
+
+// Másodpercből Tick (Amikor az egeret húzod, vagy felveszel)
+function secondsToTicks(seconds, currentBpm = bpm) {
+    return Math.round((seconds / (60 / currentBpm)) * PPQ);
+}
+
+// Tick-ből Pixel (A UI kirajzolásához)
+function ticksToPixels(ticks) {
+    return ticksToSeconds(ticks) * PX_PER_SECOND;
+}
+
+// Pixelből Tick (Visszafejtés a kattintásból)
+function pixelsToTicks(pixels) {
+    return secondsToTicks(pixels / PX_PER_SECOND);
+}
+
 // --- TRACK LISTA ESEMÉNYEK ---
 list.addEventListener('click', e => {
     // 1. Picker bezárás logikák (Audio Source / Output) - EZ MARAD A RÉGI
@@ -1417,6 +1451,76 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
     container.appendChild(clip);
 }
 
+// --- RECORDING ENGINE ---
+let activeRecorders = []; // Itt tároljuk az épp futó felvételeket
+
+async function startRecording(startTimeOffset) {
+    activeRecorders = [];
+    
+    // Megkeressük az összes "élesített" (Record aktív) sávot
+    const armedTracks = document.querySelectorAll('.track-container:has(.daw-btn.record.active)');
+    
+    for (let track of armedTracks) {
+        // Megnézzük, honnan kapja a hangot (Input picker)
+        const selectedInputBtn = track.querySelector('.audio-source-picker button.selected');
+        const inputId = selectedInputBtn ? selectedInputBtn.dataset.deviceId : 'default';
+
+        if (inputId === 'virtual') continue; // Virtual (MIDI) sávra még nem tudunk audiót venni
+
+        try {
+            // Elkérjük a mikrofont / hangkártya bemenetet
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: { deviceId: { exact: inputId } } 
+            });
+
+            const mediaRecorder = new MediaRecorder(stream);
+            let audioChunks = [];
+
+            // Adatgyűjtés
+            mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            // Amikor megáll a felvétel, csinálunk belőle egy klipet
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); // vagy audio/ogg
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                
+                // Melyik Tick-nél indult a felvétel?
+                const startTick = secondsToTicks(startTimeOffset); 
+                
+                // Klip hozzáadása a DOM-hoz (A meglévő függvényeddel!)
+                const clipsContainer = track.querySelector('.clips');
+                const clipName = "Rec_" + Math.floor(Math.random() * 1000);
+                
+                // Fontos: Az eddigi 'currentPlayTime' helyett most az indulás pillanatát adjuk át
+                addClipToTrack(clipsContainer, audioBuffer, clipName, startTimeOffset);
+                
+                // Leállítjuk a mikrofont, ne fusson a háttérben
+                stream.getTracks().forEach(t => t.stop());
+            };
+
+            // Indítás!
+            mediaRecorder.start();
+            activeRecorders.push(mediaRecorder);
+
+        } catch (err) {
+            console.error("Felvétel hiba a sávon:", err);
+            track.querySelector('.daw-btn.record').classList.remove('active');
+        }
+    }
+}
+
+function stopRecording() {
+    activeRecorders.forEach(recorder => {
+        if (recorder.state === 'recording') {
+            recorder.stop();
+        }
+    });
+    activeRecorders = [];
+}
+
 // Ikonok SVG stringek
 const ICON_PLAY = `<svg width="16" height="16" viewBox="0 0 16 16"><polygon points="3,2 13,8 3,14" fill="currentColor"/></svg>`;
 const ICON_PAUSE = `<svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="2" width="4" height="12" fill="currentColor"/><rect x="9" y="2" width="4" height="12" fill="currentColor"/></svg>`;
@@ -1444,6 +1548,12 @@ function startPlayback() {
     isPlaying = true;
     startPlayTime = audioCtx.currentTime;
     startOffset = currentPlayTime; 
+
+    // --- FELVÉTEL INDÍTÁSA (ÚJ RÉSZ) ---
+    const globalRecActive = document.querySelector('.control-panel .rec-btn').classList.contains('active');
+    if (globalRecActive) {
+        startRecording(startOffset); // Átadjuk, honnan indul a felvétel
+    }
 
     const allClips = document.querySelectorAll('.audio-clip');
     audioSources = []; 
@@ -1510,6 +1620,10 @@ function stopPlayback() {
     cancelAnimationFrame(animationFrameId);
     playBtn.classList.remove('active');
     playBtn.innerHTML = ICON_PLAY;
+
+    // --- FELVÉTEL LEÁLLÍTÁSA (ÚJ RÉSZ) ---
+    stopRecording();
+    document.querySelector('.control-panel .rec-btn').classList.remove('active');
 }
 
 function updatePlayheadAnim() {
