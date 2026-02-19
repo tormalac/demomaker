@@ -1687,8 +1687,9 @@ function updateMeters() {
     const tracks = document.querySelectorAll('.track-container');
     
     tracks.forEach(track => {
+        
+        // --- OUTPUT METER ---
         if (track.analyserNode) {
-
            const analyser = track.analyserNode;
            const bufferLength = analyser.frequencyBinCount;
            const dataArray = new Uint8Array(bufferLength);
@@ -1705,15 +1706,17 @@ function updateMeters() {
            let percentage = (max / 128) * 100 * 1.2; 
            if (percentage > 100) percentage = 100;
 
-           const meterBg = track.querySelector('.vu-meter-bg');
+           // JAVÍTVA: Konkrétan az .output belsejében keressük!
+           const meterBg = track.querySelector('.output .vu-meter-bg');
+           
            if (meterBg) {
                const insetAmount = 100 - percentage;
-             
                meterBg.style.clipPath = `inset(0 ${insetAmount}% 0 0)`;
                meterBg.style.webkitClipPath = `inset(0 ${insetAmount}% 0 0)`;
-             
            }
          }
+         
+         // --- INPUT METER ---
          const inMeterBg = track.querySelector('.audio-source .vu-meter-bg');
         
          if (track.inputAnalyserNode && inMeterBg) {
