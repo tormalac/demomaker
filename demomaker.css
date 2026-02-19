@@ -1,0 +1,1093 @@
+:root {
+    --bg-main: #0b0b0b;
+    --text-main: #e6e6e6;
+    --accent: #00ffd5;
+    --accent-soft: rgba(0, 255, 213, 0.4);
+
+    --font-main: 'Space Grotesk', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-family: var(--font-main);
+}
+
+body {
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent; /* iOS / Safari */
+  tap-highlight-color: transparent;         /* Android / egyes böngészők */
+  outline: none;                            /* fókusz körvonal kikapcsolása */
+}
+
+button svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: var(--text-main);
+}
+
+.wrapper {
+    width: 100%;
+    min-width: 800px;
+    max-width: 1800px;
+    margin: 0 auto;
+}
+
+.logo {
+    padding: 8px 0;
+    max-width: 600px;
+}
+
+.logo h1 {
+    margin: 0;
+    padding: 0;
+    font-size: 2.2rem;
+    white-space: nowrap;
+}
+
+.logo h1 span {
+    font-family: var(--font-mono);
+    font-size: 0.6em;
+    color: var(--accent);
+}
+
+main {
+    margin: 0;
+    background: #0e0e0e;
+}
+
+main p {
+    font-size: 1.1rem;
+    padding-left: 20px;
+}
+
+footer {
+    margin-top: auto;
+    text-align: center;
+    padding: 0.6rem;
+    opacity: 0.8;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.mono,
+.code,
+.badge {
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.topbar {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+#authBox {
+    position: static;
+    z-index: 2000;
+    font-size: 14px;
+}
+
+#authStatusButton {
+    white-space: nowrap;
+    background: transparent;
+    border: 1px solid var(--accent-soft);
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#authStatusButton:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(0,255,213,0.05);
+}
+
+#authDropdown {
+    position: absolute;
+    top: calc(100% - 10px); 
+    right: 0;
+    width: 190px;
+    border: 1px solid var(--accent-soft);
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    padding: 10px;
+    opacity: 0;            
+    visibility: hidden;    
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+    overflow: hidden;
+    pointer-events: none;
+    background: rgba(0,0,0,0.9); 
+}
+
+#authDropdown.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto; 
+}
+
+#authDropdown input,
+#authDropdown button {
+    background: transparent;
+    border: 1px solid var(--accent-soft);
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    margin: 8px 0 0 0;
+}
+
+#authDropdown button {
+    width: 100%;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+#authDropdown button:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(0,255,213,0.05);
+}
+
+#authDropdown input:focus {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none;
+    border: 1px solid var(--accent);
+}
+
+/*.tracks {
+    padding: 20px;
+}*/
+
+.add-track {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: 1px solid var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.8rem;
+}
+
+/*track típus választás*/
+.add-track-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.track-picker {
+    position: absolute;
+    top: 110%;
+    left: 0;
+    z-index: 800;
+    display: none;
+    border: 1px solid var(--accent-soft);
+    background: rgba(0,0,0,0.9);
+    padding: 8px;
+    min-width: 180px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.track-picker.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.track-picker button {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 8px 6px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.track-picker button:hover {
+    color: var(--accent);
+    background: rgba(0,255,213,0.05);
+}
+
+.add-track span {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.add-track:hover {
+    border-color: var(--accent);
+    background: rgba(0, 255, 213, 0.05);
+}
+
+/*track akciók*/
+.track-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.project-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(230,230,230,0.75);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.65rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.project-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent-soft);
+    background: rgba(0,255,213,0.04);
+}
+
+/*control panel*/
+.control-panel {
+    position: sticky;
+    top: 0;
+    z-index: 500 !important;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 20px;
+    height: 34px;
+    flex-wrap: nowrap;   
+    white-space: nowrap;
+    background: rgba(11,11,11,0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    font-family: var(--font-mono);
+}
+
+.control-panel button {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: rgba(230,230,230,0.75);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-panel button:hover {
+    color: var(--accent);
+    border-color: var(--accent-soft);
+    background: rgba(0,255,213,0.04);
+}
+
+.control-panel button svg {
+  color: #aaa;
+}
+
+.control-panel button:hover svg {
+  color: var(--accent);
+}
+
+/* loop toggle */
+.loop-btn.active {
+  color: var(--accent);
+  background: transparent;
+}
+
+/* play toggle */
+.play-btn.active {
+  background: transparent;
+}
+
+.play-btn.active svg {
+  color: var(--accent);
+}
+
+/* record toggle */
+.control-panel .rec-btn:hover {
+  background: rgba(255, 77, 77, 0.15);
+}
+
+.control-panel .rec-btn:hover svg{
+  color: #ff4d4d;
+}
+
+.rec-btn.active {
+  background: transparent;
+}
+
+.rec-btn.active svg {
+  color: #ff4c4c;
+}
+
+/* click toggle */
+.click-btn.active {
+  background: transparent;
+  color: var(--accent);
+}
+
+/* bpm beállítás */
+.bpm-wrap {
+  display: inline-block;
+}
+
+.bpm-input {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #aaa;
+  font-family: var(--font-mono);
+  text-align: center;
+  padding: 6px 10px;
+  width: 40px;
+  font-size: 0.7rem;
+  cursor: text;
+  transition: all 0.15s ease;
+}
+
+.bpm-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  background: rgba(0,255,213,0.05);
+  color: #fff;
+}
+
+/* ütem beállítása */
+.time-signature-wrap {
+  position: relative;
+}
+
+.time-signature-input {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #aaa;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  text-align: center;
+  padding: 6px 10px;
+  font-size: 0.7rem;
+  width: 40px;
+  cursor: text;
+  transition: all 0.2s ease;
+}
+
+.time-signature-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  background: rgba(0,255,213,0.05);
+  color: #fff;
+}
+
+/* grid beállítása */
+.grid-wrap {
+  position: relative;
+}
+
+.grid-btn {
+  width: 60px;
+}
+
+.grid-dropdown {
+  position: absolute;
+  top: 110%;
+  left: 0;
+  min-width: 100%;
+  background: rgba(0,0,0,0.9);
+  border: 1px solid var(--accent-soft);
+  border-radius: 2px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 100;
+}
+
+.grid-dropdown.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.grid-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.grid-dropdown button:hover {
+  color: var(--accent);
+  background: rgba(0,255,213,0.05);
+}
+
+.grid-dropdown button.active {
+  color: var(--accent);
+}
+
+.grid-dropdown button[data-grid$="T"] {
+  opacity: 0.85;
+}
+
+/* ütemhez igazodás toggle*/
+.snap-btn.active {
+  color: var(--accent);
+  background: transparent;
+}
+
+.snap-btn.active svg{
+  color: var(--accent);
+}
+
+/* kijelölő eszköz toggle */
+.select-btn.active {
+  color: var(--accent);
+  background: transparent;
+}
+
+.select-btn.active svg{
+  color: var(--accent);
+}
+
+.cut-btn.active svg{
+  color: var(--accent);
+}
+
+.delete-btn.active svg{
+  color: var(--accent);
+}
+
+/* vonalzó */
+.timeline-ruler {
+  display: none;     
+  position: sticky;
+  top: 50px;         
+  margin-left: 164px;     
+  width: calc(100% - 164px);         
+  box-sizing: border-box; 
+  z-index: 12;    
+  height: 22px;
+  background: #0e0e0e; 
+  border-bottom: 1px solid #333;
+  overflow: hidden !important; 
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  overflow-x: hidden !important;
+  user-select: none;
+  -webkit-user-select: none;  
+  -webkit-touch-callout: none;
+}
+
+.ruler-inner {
+  position: relative;
+  display: flex;
+  height: 100%;
+  will-change: transform;
+}
+
+.ruler-bar {
+  position: relative;
+  height: 100%;
+  border-left: 1px solid #444;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.03);
+}
+
+.ruler-bar span {
+  position: absolute;
+  top: 6px;
+  left: 4px;
+  color: #aaa;
+  z-index: 14;
+}
+
+/* track lista */
+.track-list {
+    position: relative;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/*track konténer*/
+.track-container {
+  display: flex;
+  width: 100%;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.track-container.dragging {
+    opacity: 0.5;
+    background: rgba(0,0,0,0.5);
+    border: 1px dashed var(--accent);
+    transform: scale(0.98); /* Picit menjen össze */
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+}
+
+.track-inspector {
+  position: relative;
+  padding: 6px;
+  margin-left: 10px;
+  background: rgba(255,255,255,0.01);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 136px;
+  font-family: var(--font-mono);
+  border-left: 6px solid var(--accent);
+  cursor: grab; 
+}
+
+.track-inspector:active {
+    cursor: grabbing;
+}
+
+.track-inspector .track-name {
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: text;
+  border-bottom: 1px solid rgba(100, 100, 100, 0.5);
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+
+.track-inspector .track-name:focus {
+  border-bottom: 1px solid #fff;
+  outline: none;             
+  box-shadow: none; 
+}
+
+.track-container.selected .track-inspector {
+    background: rgba(255, 255, 255, 0.06); /* Enyhe accent háttér */
+    border-left: 6px solid #fff; /* Fehér csík jelzi, hogy ez az aktív */
+}
+
+/* --- KLIP SZÍNEK TÍPUS SZERINT --- */
+
+/* DRUM (Kék) */
+.track-container.drum .audio-clip {
+    border-color: #3fa9f5 !important;
+    background: rgba(63, 169, 245, 0.3) !important;
+}
+.track-container.drum .audio-clip.selected-clip {
+    box-shadow: 0 0 10px #3fa9f5 !important;
+}
+
+/* BASS (Sárga) */
+.track-container.bass .audio-clip {
+    border-color: #ffd93d !important;
+    background: rgba(255, 217, 61, 0.3) !important;
+}
+.track-container.bass .audio-clip.selected-clip {
+    box-shadow: 0 0 10px #ffd93d !important;
+}
+
+/* SYNTH (Lila) */
+.track-container.synth .audio-clip {
+    border-color: #b084f7 !important;
+    background: rgba(176, 132, 247, 0.3) !important;
+}
+.track-container.synth .audio-clip.selected-clip {
+    box-shadow: 0 0 10px #b084f7 !important;
+}
+
+/* GUITAR (Türkiz - Alap) */
+.track-container.guitar .audio-clip {
+    border-color: #00ffd5 !important;
+    background: rgba(0, 255, 213, 0.3) !important;
+}
+
+/* VOCAL (Rózsaszín) */
+.track-container.vocal .audio-clip {
+    border-color: #ff7ac8 !important;
+    background: rgba(255, 122, 200, 0.3) !important;
+}
+.track-container.vocal .audio-clip.selected-clip {
+    box-shadow: 0 0 10px #ff7ac8 !important;
+}
+
+.delete-track {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.delete-track:hover {
+  color: #ff4c4c;
+}
+
+.track-controls {
+  display: flex;
+  gap: 4px;
+}
+
+
+.track-controls button {
+  color: var(--accent);
+}
+
+.daw-btn {
+  width: 24px;
+  height: 24px;
+  background: #111;
+  border: 1px solid var(--accent-soft);
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.daw-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  transform: scale(1.5);
+}
+
+.daw-btn line,
+.daw-btn path[stroke] {
+  stroke: currentColor;
+}
+
+.daw-btn:hover {
+  color: var(--accent);
+}
+
+.daw-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0,255,213,0.1);
+}
+
+.daw-btn.record.active {
+  color: #ff4c4c;
+  border-color: #ff4c4c;
+  background: rgba(255,76,76,0.15);
+}
+
+/*monitoring kapcsoló*/
+.track-controls .daw-btn.monitor {
+    color: #00ffd5 !important;
+}
+
+.daw-btn.monitor svg {
+  fill: #00ffd5;
+}
+
+.daw-btn.monitor .wave {
+  stroke: #00ffd5; 
+}
+
+.daw-btn.monitor.active svg {
+  fill: #00ffd5;  
+}
+
+.daw-btn.monitor.active .wave {
+  stroke: #00ffd5;
+  animation: monitorPulse 1s ease-in-out infinite;
+}
+
+@keyframes monitorPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.daw-btn.edit {
+  border-radius: 50%;
+}
+
+/*sliderek az inspectorban*/
+.track-sliders label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  gap: 2px;
+}
+
+.track-sliders input[type=range] {
+  -webkit-appearance: none;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  touch-action: pan-y;
+}
+
+.track-sliders input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.slider-value {
+  font-size: 0.65rem;
+  margin-left: 6px;
+  color: var(--accent);
+  min-width: 24px;
+  display: inline-block;
+  text-align: right;
+}
+
+.track-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-meta span {
+  background: rgba(255,255,255,0.05);
+  padding: 10px 4px;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  position: relative;
+  cursor: pointer;
+}
+
+.track-meta span.output {
+    position: relative; 
+    overflow: hidden;    
+    z-index: 1;          
+    background: rgba(255,255,255,0.05);
+    padding: 10px 4px;
+    border-radius: 2px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: inline-block;
+    min-width: 60px;
+}
+
+.vu-meter-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    width: 100%; 
+    z-index: 2;
+    opacity: 0.6;
+    pointer-events: none; 
+    /* A SZÍNTÉRKÉP (Hard Stop Gradient) */
+    background: linear-gradient(90deg, 
+        #00ffd5 0%, 
+        #00ffd5 80%,  
+        
+        #ffd93d 80%, 
+        #ffd93d 90%,  
+        
+        #ff4c4c 90%, 
+        #ff4c4c 100%
+    );
+    
+    clip-path: inset(0 100% 0 0);
+    -webkit-clip-path: inset(0 100% 0 0); 
+    
+    transition: clip-path 0.05s linear, -webkit-clip-path 0.05s linear;
+}
+
+.audio-source-picker {
+  position: absolute;
+  top: 214px;
+  left: 0px;
+  background: rgba(0,0,0,0.95);
+  border: 1px solid var(--accent-soft);
+  display: none;
+  flex-direction: column;
+  z-index: 100;
+  padding: 4px 0;
+  margin: 0 4px;
+  min-width: 120px;
+  border-radius: 4px;
+}
+
+.audio-source-picker button {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  padding: 6px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.audio-source-picker button:hover {
+  background: rgba(0,255,213,0.1);
+  color: var(--accent);
+}
+
+.output-picker {
+  position: absolute;
+  top: 252px;
+  left: 0px;
+  background: rgba(0,0,0,0.95);
+  border: 1px solid var(--accent-soft);
+  display: none;
+  flex-direction: column;
+  z-index: 100;
+  padding: 4px 0;
+  margin: 0 4px;
+  min-width: 120px;
+  border-radius: 4px;
+}
+
+.output-picker button {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  padding: 6px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.output-picker button:hover {
+  background: rgba(0,255,213,0.1);
+  color: var(--accent);
+}
+
+/*track effektek*/
+.track-inserts {
+    background: transparent;
+    color: #fff;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    padding: 10px 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.track-inserts:hover {
+    color: var(--accent);
+    border-color: var(--accent-soft);
+    background: rgba(0,255,213,0.04);
+}
+
+
+/*time-line görgetés*/
+.timeline-scroll {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-left: 200px;
+  height: 100%;
+  -webkit-overflow-scrolling: touch; 
+   scroll-behavior: smooth;
+   will-change: scroll-position;
+}
+
+.timeline-scroll.grabbing {
+    cursor: grab;
+    cursor: -webkit-grab;
+}
+
+.timeline-scroll.grabbing:active {
+    cursor: grabbing;
+    cursor: -webkit-grabbing;
+}
+
+.timeline-scroll.grabbing * {
+    user-select: none;
+    pointer-events: none; /* Fontos: így nem a sávokra kattintunk, hanem a konténerre */
+}
+
+
+.track-area {
+  position: relative;
+  height: 294px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.01);
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+}
+
+.timeline {
+  position: relative;
+  height: 100%;
+  width: max-content;
+  min-width: 2000px;
+  overflow: hidden; /* ← KÖTELEZŐ */
+}
+
+/* rácsozás */
+.timeline-grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    height: 100%;
+    width: 100%;
+}
+
+#timelineRuler {
+    cursor: pointer;
+    z-index: 110;
+}
+
+#timelineScroll {
+    cursor: grab;
+    overflow-x: hidden;
+}
+
+#timelineScroll.grabbing {
+    cursor: grabbing; 
+}
+
+/* lejátszó fej */
+#playhead {
+  position: absolute;
+  top: 0; 
+  left: 164px;
+  width: 2px;
+  height: 100%; 
+  background: rgba(255,50,50,0.9);
+  z-index: 40;
+  pointer-events: none;
+}
+
+#playhead::after {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 0;
+  width: 20px;
+  height: 100%;
+}
+
+.audio-clip {
+    position: absolute;
+    height: 70% !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    background: rgba(0, 20, 20, 0.6) !important;
+    border: 1px solid #00ffd5 !important;
+    border-radius: 6px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none; 
+    -webkit-user-select: none;
+    overflow: hidden !important;
+    transition: box-shadow 0.15s ease;
+    box-sizing: border-box;
+}
+
+.audio-clip.selected-clip {
+    border: 1px solid #fff !important;
+    box-shadow: 0 0 10px rgba(0, 255, 213, 0.6), inset 0 0 10px rgba(0, 255, 213, 0.2);
+    z-index: 10;
+}
+
+.clip-name {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 9px;
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 1px 4px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.clip-waveform {
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: col-resize;
+    z-index: 20;
+    transition: background 0.2s;
+}
+.resize-handle:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+.resize-handle.left { left: 0; border-right: 1px solid rgba(255,255,255,0.2); }
+.resize-handle.right { right: 0; border-left: 1px solid rgba(255,255,255,0.2); }
+
+/*track type színek*/
+.track-container.drum   .track-inspector { border-color: #3fa9f5; } /* kék */
+.track-container.bass   .track-inspector { border-color: #ffd93d; } /* sárga */
+.track-container.synth  .track-inspector { border-color: #b084f7; } /* lila */
+.track-container.guitar .track-inspector { border-color: #00ffd5; } /* zöld */
+.track-container.vocal  .track-inspector { border-color: #ff7ac8; } /* rózsaszín */
+
+.track-container.guitar .track-type { color: #00ffd5; }
+.track-container.drum   .track-type { color: #3fa9f5; }
+.track-container.bass   .track-type { color: #ffd93d; }
+.track-container.synth  .track-type { color: #b084f7; }
+.track-container.vocal  .track-type { color: #ff7ac8; }
