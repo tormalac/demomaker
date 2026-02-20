@@ -1613,7 +1613,20 @@ function playClickSound(time, beatNumber) {
     gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
 
     osc.start(startTime);
-    osc.stop(startTime + 0.05); 
+    osc.stop(startTime + 0.05);
+
+    const timeUntilClick = (startTime - audioCtx.currentTime) * 1000;
+
+    // Ha az ütem legelső ütése (Downbeat), akkor villanjon a gomb!
+    if (beatNumber === 0) {
+        setTimeout(() => {
+            clickBtn.classList.add('pulse-beat'); // Villanás BE
+            
+            // 100ms múlva levesszük a classt, hogy a CSS átmenettel szépen elhalványuljon
+            setTimeout(() => clickBtn.classList.remove('pulse-beat'), 100);
+            
+        }, Math.max(0, timeUntilClick));
+    }
 }
 
 // 2. A Léptető (Matek, hogy mikor jön a következő)
