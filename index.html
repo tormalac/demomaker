@@ -391,15 +391,21 @@ function initResize(e, handle, clip) {
 function handleResizeMove(clientX) {
     if (!isResizing || !resizeTarget) return;
 
-    const deltaPx = clientX - resizeStartX;
-    const deltaSec = deltaPx / PX_PER_SECOND;
+    let deltaPx = clientX - resizeStartX;
+    const snapPx = getSnapPx(); // Hívjuk a mágnest!
 
     if (resizeSide === 'right') {
-        // Jobb oldal húzása: csak a szélesség változik
+        // --- JOBB OLDAL HÚZÁSA ---
         let newWidth = resizeStartWidth + deltaPx;
+        
+        // Ha be van nyomva a Snap, rákerekítjük a szélességet a rácsra
+        if (snapPx > 0) {
+            newWidth = Math.round(newWidth / snapPx) * snapPx;
+        }
+
         if (newWidth < 10) newWidth = 10; // Min szélesség
         
-        // Nem lehet hosszabb, mint az eredeti fájl (buffer duration - start trim)
+        // Nem lehet hosszabb, mint az eredeti fájl
         const maxDuration = resizeTarget.audioBuffer.duration - resizeStartTrim;
         if (newWidth / PX_PER_SECOND > maxDuration) {
             newWidth = maxDuration * PX_PER_SECOND;
@@ -409,16 +415,24 @@ function handleResizeMove(clientX) {
         resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
     
     } else if (resizeSide === 'left') {
-        // Bal oldal húzása: szélesség csökken, left nő, trimOffset nő
-        let newWidth = resizeStartWidth - deltaPx;
+        // --- BAL OLDAL HÚZÁSA ---
         let newLeft = resizeStartLeft + deltaPx;
 
-        // Validáció: ne lehessen negatív szélesség, és ne menjen 0 alá a start
+        // Ha be van nyomva a Snap, rákerekítjük a kezdőpozíciót a rácsra
+        if (snapPx > 0) {
+            newLeft = Math.round(newLeft / snapPx) * snapPx;
+        }
+
+        // Kiszámoljuk a VALÓS elmozdulást a kerekítés (Snap) után!
+        const appliedDeltaPx = newLeft - resizeStartLeft;
+        let newWidth = resizeStartWidth - appliedDeltaPx;
+        const appliedDeltaSec = appliedDeltaPx / PX_PER_SECOND;
+
         if (newWidth < 10) return;
         if (newLeft < 0) newLeft = 0;
 
-        // Audio offset validáció (ne lehessen a fájl eleje elé menni)
-        let newTrim = resizeStartTrim + deltaSec;
+        // Audio offset validáció
+        let newTrim = resizeStartTrim + appliedDeltaSec;
         if (newTrim < 0) {
             newTrim = 0;
             newLeft = resizeStartLeft - (resizeStartTrim * PX_PER_SECOND);
@@ -431,9 +445,9 @@ function handleResizeMove(clientX) {
         resizeTarget.dataset.trimOffset = newTrim;
         resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
         
-        // Waveform eltolása (vizuális trükk: a canvas-t negatív marginnal toljuk)
+        // Waveform eltolása szinkronban
         const canvas = resizeTarget.querySelector('canvas');
-        if(canvas) {
+        if (canvas) {
             canvas.style.left = `-${newTrim * PX_PER_SECOND}px`;
         }
     }
@@ -1127,6 +1141,14 @@ ruler.addEventListener('pointerdown', (e) => {
     const rect = rulerInner.getBoundingClientRect();
     let x = e.clientX - rect.left; 
     if (x < 0) x = 0;
+    
+    // --- SNAP LOGIKA BEÉPÍTÉSE ---
+    const snapPx = getSnapPx();
+    if (snapPx > 0) {
+        x = Math.round(x / snapPx) * snapPx;
+    }
+    // -----------------------------
+
     currentPlayTime = x / PX_PER_SECOND;
     startOffset = currentPlayTime; 
     updatePlayheadVisuals();
@@ -1135,6 +1157,13 @@ ruler.addEventListener('pointerdown', (e) => {
     ruler.onpointermove = (ev) => {
         let mx = ev.clientX - rect.left;
         if (mx < 0) mx = 0;
+        
+        // --- SNAP LOGIKA BEÉPÍTÉSE HÚZÁSKOR IS ---
+        if (snapPx > 0) {
+            mx = Math.round(mx / snapPx) * snapPx;
+        }
+        // -----------------------------------------
+
         currentPlayTime = mx / PX_PER_SECOND;
         startOffset = currentPlayTime;
         updatePlayheadVisuals();
