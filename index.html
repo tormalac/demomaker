@@ -154,6 +154,20 @@
         </div>
 
     </main>
+
+    <div class="zoom-container" id="zoomContainer" style="display: none;">
+    <label>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <line x1="11" y1="8" x2="11" y2="14"></line>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+        </svg>
+        <input type="range" id="zoomSlider" min="0.2" max="1.8" step="0.05" value="1.0">
+        <span id="zoomValueDisplay" class="slider-value">1.0x</span>
+    </label>
+    </div>
+
     <footer>
         © 2026 demoMaker – Tape vibes. Modern tools.
     </footer>
@@ -575,7 +589,9 @@ list.addEventListener('click', e => {
             if (remainingTracks === 0) {
                 document.getElementById('timelineRuler').style.display = 'none';
             }
-            updateSoloStates(); 
+            updateSoloStates();
+
+            updateZoomVisibility();
         }
     }
 });
@@ -757,6 +773,8 @@ picker.addEventListener('click', (e) => {
 
     addTrackDragEvents(track);
     list.appendChild(track);
+
+    updateZoomVisibility();
     
     document.querySelectorAll('.track-container').forEach(t => t.classList.remove('selected'));
     track.classList.add('selected');
@@ -794,6 +812,18 @@ document.addEventListener('input', e => {
     }
   }
 });
+
+const zoomContainer = document.getElementById('zoomContainer');
+
+// Függvény a Zoom slider láthatóságának frissítésére
+function updateZoomVisibility() {
+    const trackCount = document.querySelectorAll('.track-container').length;
+    if (trackCount > 0) {
+        zoomContainer.style.display = 'block';
+    } else {
+        zoomContainer.style.display = 'none';
+    }
+}
 
 let draggedTrack = null;
 
@@ -1058,7 +1088,7 @@ const playTimeDisplay = document.querySelector('.play-time-btn');
 
 function secondsPerBar() { return (60 / bpm) * timeSig[0]; }
 
-function drawRuler(durationSeconds = 120) {
+/*function drawRuler(durationSeconds = 120) {
   rulerInner.innerHTML = '';
   const barSeconds = secondsPerBar();
   const barPx = barSeconds * PX_PER_SECOND;
@@ -1079,6 +1109,35 @@ function drawRuler(durationSeconds = 120) {
   document.querySelectorAll('.timeline').forEach(tl => {
       tl.style.width = totalWidthPx + 'px';
   });
+}*/
+
+function drawRuler(totalBars = 200) {
+    rulerInner.innerHTML = '';
+    
+    // Kiszámoljuk egyetlen ütem hosszát pixelben
+    const barSeconds = secondsPerBar();
+    const barPx = barSeconds * PX_PER_SECOND;
+    
+    // Kirajzoljuk pontosan a kért mennyiségű ütemet
+    for (let i = 0; i < totalBars; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'ruler-bar';
+        bar.style.width = barPx + 'px';
+        
+        const label = document.createElement('span');
+        label.textContent = i + 1; 
+        bar.appendChild(label);
+        
+        rulerInner.appendChild(bar);
+    }
+    
+    // Beállítjuk a teljes konténer és a sávok pontos szélességét
+    const totalWidthPx = totalBars * barPx;
+    rulerInner.style.width = totalWidthPx + 'px';
+    
+    document.querySelectorAll('.timeline').forEach(tl => {
+        tl.style.width = totalWidthPx + 'px';
+    });
 }
 
 function drawAllGrids() {
@@ -1095,6 +1154,60 @@ function drawAllGrids() {
         el.style.backgroundSize = `${barPx}px 100%, ${gridPx}px 100%`;
     });
 }
+
+// ==========================================================
+// --- ZOOM LOGIKA ---
+// ==========================================================
+const zoomSlider = document.getElementById('zoomSlider');
+
+// 1. Esemény: Amikor HÚZOD a csúszkát (Valós idejű, gyors nyújtás)
+zoomSlider.addEventListener('input', (e) => {
+    zoom = parseFloat(e.target.value);
+
+    document.getElementById('zoomValueDisplay').textContent = zoom.toFixed(1) + 'x';
+
+    PX_PER_SECOND = 100 * zoom; // Frissítjük a globális szorzót
+
+    // A vonalzó és a háttérrács azonnali frissítése
+    drawRuler();
+    drawAllGrids();
+
+    // Az összes meglévő klip pozíciójának és méretének frissítése
+    document.querySelectorAll('.audio-clip').forEach(clip => {
+        const start = parseFloat(clip.dataset.start);
+        const duration = parseFloat(clip.dataset.duration);
+        const trimOffset = parseFloat(clip.dataset.trimOffset || 0);
+
+        // Doboz (klip) átméretezése
+        clip.style.left = `${start * PX_PER_SECOND}px`;
+        clip.style.width = `${duration * PX_PER_SECOND}px`;
+
+        // Waveform vizuális nyújtása CSS-ből (így nem laggol)
+        const canvas = clip.querySelector('canvas');
+        if (canvas && clip.audioBuffer) {
+            const fullWidth = clip.audioBuffer.duration * PX_PER_SECOND;
+            canvas.style.width = `${fullWidth}px`;
+            canvas.style.left = `-${trimOffset * PX_PER_SECOND}px`;
+        }
+    });
+
+    // Playhead pozíciójának frissítése a vonalzón
+    updatePlayheadVisuals();
+});
+
+// 2. Esemény: Amikor ELENGEDED a csúszkát (Élesre rajzolás)
+zoomSlider.addEventListener('change', (e) => {
+    document.querySelectorAll('.audio-clip').forEach(clip => {
+        const canvas = clip.querySelector('canvas');
+        if (canvas && clip.audioBuffer) {
+            const fullWidth = clip.audioBuffer.duration * PX_PER_SECOND;
+            
+            canvas.width = Math.min(Math.max(1, fullWidth), 16384); 
+            
+            drawWaveform(canvas, clip.audioBuffer); // Hullám újrarajzolása
+        }
+    });
+});
 
 function setScroll(x) {
     if (x < 0) x = 0;
@@ -1489,8 +1602,8 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
     // TRÜKK: A canvas szélessége mindig a TELJES eredeti fájl hossza
     const fullWidth = buffer.duration * PX_PER_SECOND;
     
-    canvas.width = fullWidth;          // Belső felbontás
-    canvas.style.width = `${fullWidth}px`; // CSS szélesség
+    canvas.width = Math.min(fullWidth, 16384);       
+    canvas.style.width = `${fullWidth}px`; 
     
     // ELTOLÁS: Ha van trimOffset (vágás az elejéről), ennyivel húzzuk balra a canvast
     // Így a megfelelő rész kerül a "keret" alá.
