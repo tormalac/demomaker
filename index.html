@@ -865,15 +865,28 @@ document.querySelectorAll('.loop-btn, .play-btn, .rec-btn, .click-btn, .snap-btn
     });
 });
 
+// BPM Input kezelése
 const bpmInput = document.querySelector('.bpm-input');
+
+// Gépelés közben csak a számokat engedjük
 bpmInput.addEventListener('input', () => {
-  bpmInput.value = bpmInput.value.replace(/\D/g, '');
-  let val = parseInt(bpmInput.value);
-  if (val > 999) bpmInput.value = '999';
-  if (val < 1 && bpmInput.value !== '') bpmInput.value = '1';
-  bpm = val || 120;
-  drawRuler();
-  drawAllGrids();
+    bpmInput.value = bpmInput.value.replace(/\D/g, '');
+});
+
+// Amikor Entert nyom, vagy elhagyja a mezőt (change event)
+bpmInput.addEventListener('change', () => {
+    let val = parseInt(bpmInput.value);
+    
+    // Biztonsági korlátok (Ne lehessen 0 vagy 1000 feletti)
+    if (isNaN(val) || val < 20) val = 20;
+    if (val > 999) val = 999;
+    
+    bpmInput.value = val;
+    bpm = val; // Frissítjük a globális változót!
+    
+    // Újrarajzoljuk a vizuális elemeket
+    drawRuler();
+    drawAllGrids();
 });
 
 gridBtn.addEventListener('click', e => {
@@ -1167,11 +1180,29 @@ function handleClipInteraction(clientX, target) {
     return false;
 }
 
+// --Snap funkció--
+function getSnapPx() {
+    const snapBtn = document.querySelector('.snap-btn');
+    if (!snapBtn || !snapBtn.classList.contains('active')) return 0;
+
+    const secondsPerBeat = 60 / bpm;
+    const gridMultiplier = GRID_MAP[currentGrid] || 0.5;
+    const gridSeconds = secondsPerBeat * gridMultiplier;
+    
+    return gridSeconds * PX_PER_SECOND;
+}
+
 function handleClipDragMove(clientX) {
     if (!isDraggingClip || !draggedClip) return;
     const walk = clientX - clipMouseStartX;
     let newLeft = clipStartLeft + walk;
     if (newLeft < 0) newLeft = 0;
+
+    const snapPx = getSnapPx();
+    if (snapPx > 0) {
+        // A kerekítés mágiája: ráhúzza a legközelebbi rácsvonalra
+        newLeft = Math.round(newLeft / snapPx) * snapPx;
+    }
 
     draggedClip.style.left = newLeft + 'px';
     draggedClip.dataset.start = newLeft / PX_PER_SECOND; 
