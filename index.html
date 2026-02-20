@@ -1664,20 +1664,24 @@ function startPlayback() {
     startOffset = currentPlayTime; 
 
     // --- SCHEDULER & METRONÓM INDÍTÁSA ---
-    // Kiszámoljuk, pontosan melyik ütésnél tartunk a vonalzón (startOffset alapján)
     const secondsPerBeat = 60.0 / bpm;
-    const beatsPassed = startOffset / secondsPerBeat;
     
-    // Kiszámoljuk, hányadik ütés (0,1,2,3) az ütemben, hogy jó legyen a pittyenés magassága
-    currentQuarterNote = Math.floor(beatsPassed) % timeSig[0];
+    // Kerekítünk egy picit a lebegőpontos pontatlanságok miatt (pl. 2.0000001 -> 2)
+    const beatsPassed = Math.round((startOffset / secondsPerBeat) * 10000) / 10000;
     
-    // Kiszámoljuk, mikor jön a legközelebbi ütés a vonalzón (offset korrekció)
-    const nextBeatDelay = (Math.ceil(beatsPassed) - beatsPassed) * secondsPerBeat;
+    // 1. FIX: Kiszámoljuk, melyik lesz a legközelebbi JÖVŐBELI ütés a globális rácson
+    const nextBeatIndex = Math.ceil(beatsPassed);
     
-    // Beállítjuk a legelső hang idejét
+    // 2. FIX: Ez hányadik ütés lesz az adott ütemben? (0, 1, 2, 3)
+    currentQuarterNote = nextBeatIndex % timeSig[0];
+    
+    // 3. FIX: Mennyi idő múlva érünk oda ehhez a jövőbeli ütéshez?
+    const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerBeat;
+    
+    // Beállítjuk a legelső metronóm hangot pontosan a rácsra!
     nextNoteTime = audioCtx.currentTime + nextBeatDelay;
     
-    // Elindítjuk az ismétlődő ütemezőt!
+    // Elindítjuk az ismétlődő ütemezőt
     scheduler();
 
     // --- FELVÉTEL INDÍTÁSA (ÚJ RÉSZ) ---
