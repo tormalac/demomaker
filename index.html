@@ -484,13 +484,6 @@ function pixelsToTicks(pixels) {
     return secondsToTicks(pixels / PX_PER_SECOND);
 }
 
-let isClickActive = false;
-
-const clickBtn = document.querySelector('.click-btn');
-clickBtn.addEventListener('click', (e) => {
-    isClickActive = clickBtn.classList.contains('active'); 
-});
-
 // --- TRACK LISTA ESEMÉNYEK ---
 list.addEventListener('click', e => {
     // 1. Picker bezárás logikák (Audio Source / Output) - EZ MARAD A RÉGI
@@ -1595,27 +1588,32 @@ let timerID; // Az időzítő azonosítója
 
 // 1. A Metronóm Hangja (Sípolás)
 function playClickSound(time, beatNumber) {
-    if (!isClickActive) return; // Csak akkor szólal meg, ha be van nyomva a Click gomb
+    const clickBtn = document.querySelector('.click-btn');
+    if (!clickBtn || !clickBtn.classList.contains('active')) return; 
 
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
 
     osc.connect(gainNode);
-    gainNode.connect(masterGain); // A fő kimenetre küldjük
+    gainNode.connect(masterGain); 
 
-    // Ütem első ütése (Downbeat) magasabb hang (pl. 1000Hz), a többi mélyebb (800Hz)
     if (beatNumber === 0) {
         osc.frequency.value = 1000;
     } else {
         osc.frequency.value = 800;
     }
 
-    // Burkológörbe (Envelope), hogy egy rövid, határozott kattanás legyen
-    gainNode.gain.setValueAtTime(1, time);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    // 2. FIX: Biztonsági időzítés
+    // Ha a böngésző megakadna, és a `time` a múltba mutatna, 
+    // rákényszerítjük, hogy a JELENLEGI pillanatban szólaljon meg, így nem némul el.
+    const startTime = Math.max(time, audioCtx.currentTime);
 
-    osc.start(time);
-    osc.stop(time + 0.05); // 50ms hosszú pittyenés
+    // Beállítjuk a hangerő görbét (kattanás)
+    gainNode.gain.setValueAtTime(1, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
+
+    osc.start(startTime);
+    osc.stop(startTime + 0.05); 
 }
 
 // 2. A Léptető (Matek, hogy mikor jön a következő)
