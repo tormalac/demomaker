@@ -1113,3 +1113,65 @@ h1, h2, h3 {
 .track-container.synth  .track-type { color: #b084f7; }
 .track-container.vocal  .track-type { color: #ff7ac8; }
 .track-container.sample .track-type { color: #ff8c00; }
+
+/* --- ZOOM CSÚSZKA --- */
+.zoom-container {
+    position: fixed;
+    bottom: 40px;
+    right: 40px;
+    background: #1e1e1e;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    z-index: 100;
+    color: #aaa;
+    font-size: 0.75rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+/* ... a label, input és slider-thumb CSS marad a régi ... */
+
+/* ÚJ: Reszponzív nézet mobilra */
+@media (max-width: 768px) {
+    .zoom-container {
+        bottom: 20px;
+        right: 20px;
+        padding: 4px 8px;
+    }
+    .zoom-container input[type="range"] {
+        width: 60px; /* Mobilon kicsit rövidebb csúszka, hogy kiférjen */
+    }
+}
+
+.zoom-container label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    margin: 0;
+}
+
+/* Kisebb, vékonyabb csúszka, mint a sávokon */
+.zoom-container input[type="range"] {
+    width: 80px; 
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    -webkit-appearance: none;
+    outline: none;
+}
+
+.zoom-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #00ffd5;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.zoom-container .slider-value {
+    min-width: 35px;
+    text-align: right;
+    color: #888;
+}
