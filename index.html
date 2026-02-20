@@ -468,25 +468,28 @@ let projectState = {
 
 // --- KONVERTER FÜGGVÉNYEK (A Mágia) ---
 
-// Tick-ből Másodperc (Az Audio API-nak kell)
 function ticksToSeconds(ticks, currentBpm = bpm) {
     return (ticks / PPQ) * (60 / currentBpm);
 }
 
-// Másodpercből Tick (Amikor az egeret húzod, vagy felveszel)
 function secondsToTicks(seconds, currentBpm = bpm) {
     return Math.round((seconds / (60 / currentBpm)) * PPQ);
 }
 
-// Tick-ből Pixel (A UI kirajzolásához)
 function ticksToPixels(ticks) {
     return ticksToSeconds(ticks) * PX_PER_SECOND;
 }
 
-// Pixelből Tick (Visszafejtés a kattintásból)
 function pixelsToTicks(pixels) {
     return secondsToTicks(pixels / PX_PER_SECOND);
 }
+
+let isClickActive = false;
+
+const clickBtn = document.querySelector('.click-btn');
+clickBtn.addEventListener('click', (e) => {
+    isClickActive = clickBtn.classList.contains('active'); 
+});
 
 // --- TRACK LISTA ESEMÉNYEK ---
 list.addEventListener('click', e => {
@@ -1581,12 +1584,90 @@ playBtn.onclick = (e) => {
     }
 };
 
+// ==========================================================
+// --- SCHEDULER ÉS METRONÓM (CLICK MOTOR) ---
+// ==========================================================
+let lookahead = 25.0; // Milyen gyakran fusson a JS időzítő (ms)
+let scheduleAheadTime = 0.1; // Milyen messzire nézzünk a jövőbe (másodperc)
+let nextNoteTime = 0.0; // Mikor kell megszólalnia a következő ütésnek?
+let currentQuarterNote = 0; // Melyik ütésnél (beat) járunk az ütemben? (0, 1, 2, 3...)
+let timerID; // Az időzítő azonosítója
+
+// 1. A Metronóm Hangja (Sípolás)
+function playClickSound(time, beatNumber) {
+    if (!isClickActive) return; // Csak akkor szólal meg, ha be van nyomva a Click gomb
+
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(masterGain); // A fő kimenetre küldjük
+
+    // Ütem első ütése (Downbeat) magasabb hang (pl. 1000Hz), a többi mélyebb (800Hz)
+    if (beatNumber === 0) {
+        osc.frequency.value = 1000;
+    } else {
+        osc.frequency.value = 800;
+    }
+
+    // Burkológörbe (Envelope), hogy egy rövid, határozott kattanás legyen
+    gainNode.gain.setValueAtTime(1, time);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+
+    osc.start(time);
+    osc.stop(time + 0.05); // 50ms hosszú pittyenés
+}
+
+// 2. A Léptető (Matek, hogy mikor jön a következő)
+function nextNote() {
+    const secondsPerBeat = 60.0 / bpm;
+    // Hozzáadjuk a következő negyed hosszát
+    nextNoteTime += secondsPerBeat;
+    
+    // Lépünk a következő ütésre, és ha elértük az ütem végét, nullázzuk
+    currentQuarterNote++;
+    if (currentQuarterNote === timeSig[0]) {
+        currentQuarterNote = 0;
+    }
+}
+
+// 3. Maga az Ütemező (A Főnök)
+function scheduler() {
+    // Amíg a következő hang ideje "beleesik" abba az ablakba, amit előre vizsgálni akarunk...
+    while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+        // ...akkor beütemezzük a lejátszását az AudioContext pontos órájára!
+        playClickSound(nextNoteTime, currentQuarterNote);
+        // ...és rögtön kiszámoljuk a rákövetkező idejét
+        nextNote();
+    }
+    // Újra meghívja magát picit később
+    timerID = setTimeout(scheduler, lookahead);
+}
+
+// --Lejátszás--
 function startPlayback() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     
     isPlaying = true;
     startPlayTime = audioCtx.currentTime;
     startOffset = currentPlayTime; 
+
+    // --- SCHEDULER & METRONÓM INDÍTÁSA ---
+    // Kiszámoljuk, pontosan melyik ütésnél tartunk a vonalzón (startOffset alapján)
+    const secondsPerBeat = 60.0 / bpm;
+    const beatsPassed = startOffset / secondsPerBeat;
+    
+    // Kiszámoljuk, hányadik ütés (0,1,2,3) az ütemben, hogy jó legyen a pittyenés magassága
+    currentQuarterNote = Math.floor(beatsPassed) % timeSig[0];
+    
+    // Kiszámoljuk, mikor jön a legközelebbi ütés a vonalzón (offset korrekció)
+    const nextBeatDelay = (Math.ceil(beatsPassed) - beatsPassed) * secondsPerBeat;
+    
+    // Beállítjuk a legelső hang idejét
+    nextNoteTime = audioCtx.currentTime + nextBeatDelay;
+    
+    // Elindítjuk az ismétlődő ütemezőt!
+    scheduler();
 
     // --- FELVÉTEL INDÍTÁSA (ÚJ RÉSZ) ---
     const globalRecActive = document.querySelector('.control-panel .rec-btn').classList.contains('active');
@@ -1660,9 +1741,13 @@ function stopPlayback() {
     playBtn.classList.remove('active');
     playBtn.innerHTML = ICON_PLAY;
 
-    // --- FELVÉTEL LEÁLLÍTÁSA (ÚJ RÉSZ) ---
-    stopRecording();
-    document.querySelector('.control-panel .rec-btn').classList.remove('active');
+    if (typeof stopRecording === "function") stopRecording(); 
+    const recBtn = document.querySelector('.control-panel .rec-btn');
+    if (recBtn) recBtn.classList.remove('active');
+
+    // --- SCHEDULER LEÁLLÍTÁSA ---
+    clearTimeout(timerID); 
+    // ----------------------------
 }
 
 function updatePlayheadAnim() {
