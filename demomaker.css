@@ -362,10 +362,20 @@ h1, h2, h3 {
   color: #ff4c4c;
 }
 
-/* click toggle */
+.click-btn {
+    transition: background-color 0.15s ease-out, box-shadow 0.15s ease-out, color 0.15s ease-out !important;
+}
+
 .click-btn.active {
   background: transparent;
   color: var(--accent);
+}
+
+.click-btn.pulse-beat {
+    background-color: #00ffd5 !important;
+    color: #000 !important;
+    box-shadow: 0 0 15px rgba(0, 255, 213, 0.8) !important;
+    transition: none !important; /* Azonnal villanjon fel (nincs átmenet) */
 }
 
 /* bpm beállítás */
