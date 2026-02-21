@@ -1116,31 +1116,15 @@ h1, h2, h3 {
 
 /* --- ZOOM CSÚSZKA --- */
 .zoom-container {
-    position: fixed;
-    bottom: 40px;
-    right: 40px;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
     background: #1e1e1e;
     padding: 6px 12px;
-    border-radius: 4px;
     border: 1px solid #333;
     z-index: 100;
     color: #aaa;
     font-size: 0.75rem;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-}
-
-/* ... a label, input és slider-thumb CSS marad a régi ... */
-
-/* ÚJ: Reszponzív nézet mobilra */
-@media (max-width: 768px) {
-    .zoom-container {
-        bottom: 20px;
-        right: 20px;
-        padding: 4px 8px;
-    }
-    .zoom-container input[type="range"] {
-        width: 60px; /* Mobilon kicsit rövidebb csúszka, hogy kiférjen */
-    }
 }
 
 .zoom-container label {
@@ -1164,8 +1148,8 @@ h1, h2, h3 {
 .zoom-container input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 12px;
-    height: 12px;
-    background: #00ffd5;
+    height: 16px;
+    background: var(--accent);
     border-radius: 2px;
     cursor: pointer;
 }
