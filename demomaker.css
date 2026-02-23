@@ -1235,8 +1235,8 @@ h1, h2, h3 {
 .mix-controls button { width: 22px; height: 22px; font-size: 0.7rem;}
 
 /* Kicsi Pan csúszka a keverőn */
-.mix-pan-wrap { width: 100%; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; font-size: 0.65rem; color: #aaa;}
-.mini-pan-fader { height: 4px; width: 50px; background: rgba(255,255,255,0.15); border-radius: 2px; -webkit-appearance: none; outline: none; }
+.mix-pan-wrap { width: 100%; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 0.65rem; color: #aaa; }
+.mini-pan-fader { height: 4px; width: 76px; background: rgba(255,255,255,0.15); border-radius: 2px; -webkit-appearance: none; outline: none; }
 .mini-pan-fader::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 12px; background: #aaa; border-radius: 2px; cursor: pointer; }
 
 /* Vertikális Hangerő Csúszka (CSS Forgatással) */
