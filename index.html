@@ -712,6 +712,17 @@ document.addEventListener('input', e => {
     }
 });
 
+// --- ENTER TILTÁSA A SÁV NEVÉNEK ÁTÍRÁSAKOR ---
+document.addEventListener('keydown', (e) => {
+    // Csak akkor avatkozunk be, ha épp egy track nevét szerkesztik
+    if (e.target.classList.contains('track-name')) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Megakadályozza az új sort
+            e.target.blur();    // Leveszi a kurzort, mintha kész lennél
+        }
+    }
+});
+
 // --- GOMBOK ÉS KATTINTÁSOK KEZELÉSE (Sávok és Keverő is) ---
 document.addEventListener('click', e => {
     
