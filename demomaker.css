@@ -92,6 +92,25 @@ h1, h2, h3 {
     text-transform: uppercase;
 }
 
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2); 
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15); 
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-soft); /* Neon türkiz fénylés, ha ráviszed az egeret */
+}
+
 .topbar {
     position: relative;
     display: flex;
@@ -715,6 +734,7 @@ h1, h2, h3 {
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
+  color: var(--accent);
 }
 
 .daw-btn svg {
@@ -1159,3 +1179,87 @@ h1, h2, h3 {
     text-align: right;
     color: #888;
 }
+
+/* mixer panel */
+
+.mixer-panel {
+    height: 250px;
+    background: #111;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    padding: 10px 0 10px 10px; /* Jobb oldali padding 0, hogy a Master a szélén legyen */
+    flex-shrink: 0;
+    overflow: hidden; /* A keret maga MÁR NEM görgethető */
+    font-family: var(--font-mono);
+}
+
+.mixer-tracks-container { 
+    display: flex; 
+    gap: 10px; 
+    flex-grow: 1; 
+    overflow-x: auto; /* CSAK a bal oldali sávok görgethetők! */
+    overflow-y: hidden;
+    padding-right: 15px; /* Egy kis távolság a Mastertől görgetéskor */
+    padding-bottom: 8px; /* Hely a görgetősávnak */
+}
+
+.mixer-master-container {
+    display: flex; 
+    gap: 10px;  
+    border-left: 2px solid #222; 
+    padding: 0 15px; 
+    background: #111; 
+    flex-shrink: 0; /* Megakadályozza, hogy összenyomódjon a Master, ha sok sáv van */
+}
+
+/*.mixer-master-container { 
+    position: sticky; right: 0; border-left: 1px solid #222; padding-left: 15px; background: #111; z-index: 100; display: flex; gap: 10px;}*/
+
+.mixer-channel {
+    width: 80px;
+    background: #181818;
+    border: 1px solid #2a2a2a;
+    border-radius: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 6px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* Kicsi szövegek és gombok a keverőn */
+.mix-header { font-size: 10px; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; text-align: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ddd; }
+.mix-type { font-size: 8px; margin-bottom: 8px; text-transform: uppercase; }
+.mix-controls { display: flex; gap: 4px; margin-bottom: 10px; }
+.mix-controls button { width: 22px; height: 22px; font-size: 0.7rem;}
+
+/* Kicsi Pan csúszka a keverőn */
+.mix-pan-wrap { width: 100%; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; font-size: 0.65rem; color: #aaa;}
+.mini-pan-fader { height: 4px; width: 50px; background: rgba(255,255,255,0.15); border-radius: 2px; -webkit-appearance: none; outline: none; }
+.mini-pan-fader::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 12px; background: #aaa; border-radius: 2px; cursor: pointer; }
+
+/* Vertikális Hangerő Csúszka (CSS Forgatással) */
+.fader-wrapper { width: 30px; height: 100px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+.vertical-fader { width: 100px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; transform: rotate(-90deg); margin: 0; -webkit-appearance: none; outline: none;}
+.vertical-fader::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 12px; background: var(--accent); border-radius: 2px; cursor: pointer;}
+.mix-val { font-size: 10px; color: var(--accent); margin-top: 5px; }
+
+/* Master csatorna egyedi stílusok */
+.master-channel { border-color: var(--accent-soft); background: #1a1a1a; }
+.master-channel .mix-header { color: var(--accent); font-size: 12px; margin-bottom: 5px;}
+.master-channel .vertical-fader::-webkit-slider-thumb { background: var(--accent); }
+.master-channel .mix-val { color: var(--accent); }
+
+/* Inserts gomb a Masteren */
+.mix-inserts { background: #222; font-size: 9px; padding: 6px 2px; border-radius: 2px; cursor: pointer; width: 90%; text-align: center; margin-bottom: 10px; transition: all 0.2s; color: #aaa; font-family: var(--font-mono); text-transform: uppercase;}
+.master-channel .mix-inserts:hover { color: var(--accent); border-color: var(--accent);}
+
+/* Típus színek a keverő tetején */
+.mixer-channel.drum { border-top: 3px solid #3fa9f5; } .mixer-channel.drum .mix-type { color: #3fa9f5; }
+.mixer-channel.bass { border-top: 3px solid #ffd93d; } .mixer-channel.bass .mix-type { color: #ffd93d; }
+.mixer-channel.synth { border-top: 3px solid #b084f7; } .mixer-channel.synth .mix-type { color: #b084f7; }
+.mixer-channel.guitar { border-top: 3px solid #00ffd5; } .mixer-channel.guitar .mix-type { color: #00ffd5; }
+.mixer-channel.vocal { border-top: 3px solid #ff7ac8; } .mixer-channel.vocal .mix-type { color: #ff7ac8; }
+.mixer-channel.sample { border-top: 3px solid #ff8c00; } .mixer-channel.sample .mix-type { color: #ff8c00; }
+.mixer-channel.master { border-top: 3px solid #ff4c4c; }
