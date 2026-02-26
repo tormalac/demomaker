@@ -581,6 +581,47 @@ h1, h2, h3 {
   z-index: 14;
 }
 
+/* --- CUBASE STÍLUSÚ LOKÁTOROK (LOOP RANGES) --- */
+.loop-region {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(0, 255, 213, 0.15); /* Halvány türkiz háttér */
+    border-left: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+    z-index: 25;
+    box-sizing: border-box;
+    pointer-events: none; /* Magára a sávra nem lehet kattintani, csak a széleire */
+}
+
+.loop-handle {
+    position: absolute;
+    top: 0;
+    width: 20px;
+    height: 100%;
+    cursor: ew-resize;
+    pointer-events: auto; /* A füleket meg lehet fogni */
+    z-index: 16;
+    background: transparent;
+}
+
+.loop-handle.left { left: -10px; }
+.loop-handle.right { right: -10px; }
+
+/* Kis háromszögek a lokátorok tetején (Cubase vibe) */
+.loop-handle::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 0; 
+    height: 0; 
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--accent);
+}
+.loop-handle.left::before { left: 5px; }
+.loop-handle.right::before { right: 5px; }
+
 /* track lista */
 .track-list {
     position: relative;
@@ -604,11 +645,6 @@ h1, h2, h3 {
     border: 1px dashed var(--accent);
     transform: scale(0.98); /* Picit menjen össze */
     box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-}
-
-.track-container.drag-over-target {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px dashed var(--accent);
 }
 
 .track-inspector {
