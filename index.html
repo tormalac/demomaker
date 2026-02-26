@@ -144,7 +144,12 @@
 
         <div class="track-list" id="trackList">
            <div class="timeline-ruler" id="timelineRuler">
-               <div class="ruler-inner" id="rulerInner"></div>
+               <div class="ruler-inner" id="rulerInner">
+                    <div id="loopRegion" class="loop-region" style="display: none;">
+                        <div class="loop-handle left" data-side="left"></div>
+                        <div class="loop-handle right" data-side="right"></div>
+                    </div>
+               </div>
            </div>
            <div cmixerTrackslass="timeline-scroll" id="timelineScroll"></div>
            <div id="playhead"></div>
@@ -1135,7 +1140,13 @@ const playTimeDisplay = document.querySelector('.play-time-btn');
 function secondsPerBar() { return (60 / bpm) * timeSig[0]; }
 
 function drawRuler(totalBars = 200) {
+
+    const loopEl = document.getElementById('loopRegion');
+    
     rulerInner.innerHTML = '';
+    
+    if (loopEl) rulerInner.appendChild(loopEl);
+    
     const barSeconds = secondsPerBar();
     const barPx = barSeconds * PX_PER_SECOND;
     
@@ -1153,6 +1164,9 @@ function drawRuler(totalBars = 200) {
     document.querySelectorAll('.timeline').forEach(tl => {
         tl.style.width = totalWidthPx + 'px';
     });
+    
+    // Frissítjük a vizuális pozícióját is (pl. zoomolás után)
+    if (typeof updateLoopVisuals === 'function') updateLoopVisuals();
 }
 
 function drawAllGrids() {
@@ -1287,6 +1301,68 @@ ruler.addEventListener('pointerdown', (e) => {
         ruler.onpointerup = null;
     };
 });
+
+// ==========================================================
+// --- LOOP LOKÁTOR (CUBASE STÍLUS) ---
+// ==========================================================
+let loopStartSec = 0;
+let loopEndSec = 4; // Alapból 4 másodpercnyi (vagy ütemnyi) loop
+const loopRegion = document.getElementById('loopRegion');
+const loopBtn = document.querySelector('.loop-btn');
+
+let isDraggingLocator = false;
+let locatorSide = null;
+
+// Gombnyomásra megjelenik/eltűnik
+loopBtn.addEventListener('click', () => {
+    const isActive = loopBtn.classList.contains('active');
+    loopRegion.style.display = isActive ? 'block' : 'none';
+    if (isActive) updateLoopVisuals();
+});
+
+function updateLoopVisuals() {
+    const leftPx = loopStartSec * PX_PER_SECOND;
+    const widthPx = (loopEndSec - loopStartSec) * PX_PER_SECOND;
+    loopRegion.style.left = `${leftPx}px`;
+    loopRegion.style.width = `${Math.max(10, widthPx)}px`; // Minimum 10px széles
+}
+
+// Csatlakoztatjuk a lokátor füleket a mozgatáshoz
+document.querySelectorAll('.loop-handle').forEach(handle => {
+    const initLocatorDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isDraggingLocator = true;
+        locatorSide = handle.dataset.side;
+        document.body.style.cursor = 'ew-resize';
+    };
+    handle.addEventListener('mousedown', initLocatorDrag);
+    handle.addEventListener('touchstart', initLocatorDrag, {passive: false});
+});
+
+// Ez a függvény számolja ki az új helyet húzás közben
+function handleLocatorMove(clientX) {
+    if (!isDraggingLocator) return;
+    
+    const rect = rulerInner.getBoundingClientRect();
+    let x = clientX - rect.left;
+    if (x < 0) x = 0;
+
+    // Rácshoz (gridhez) igazodás a lokátoroknál is!
+    const snapPx = getSnapPx();
+    if (snapPx > 0) {
+        x = Math.round(x / snapPx) * snapPx;
+    }
+
+    const sec = x / PX_PER_SECOND;
+
+    if (locatorSide === 'left') {
+        if (sec < loopEndSec - 0.1) loopStartSec = sec; // Ne lehessen a jobb oldali alá tolni
+    } else {
+        if (sec > loopStartSec + 0.1) loopEndSec = sec; // Ne lehessen a bal oldali alá tolni
+    }
+    updateLoopVisuals();
+}
 
 // ==========================================================
 // --- KLIP KIJELÖLÉS, GÖRGETÉS ÉS MOZGATÁS ---
@@ -1424,6 +1500,12 @@ function resetAllInteractions() {
     isPanning = false;
     isPanDirectionLocked = false;
     panDirection = null;
+
+    if (isDraggingLocator) {
+        isDraggingLocator = false;
+        locatorSide = null;
+    }
+
     document.body.style.cursor = '';
 }
 
@@ -1460,6 +1542,7 @@ document.addEventListener('mousedown', (e) => {
 });
 
 document.addEventListener('mousemove', (e) => {
+    if (isDraggingLocator) { e.preventDefault(); handleLocatorMove(e.touches ? e.touches[0].clientX : e.clientX); return; }
     if (isResizing) { handleResizeMove(e.clientX); return; }
     // ITT VAN A JAVÍTÁS: Átadjuk mindkét koordinátát!
     if (isDraggingClip) { e.preventDefault(); handleClipDragMove(e.clientX, e.clientY); return; }
@@ -1485,6 +1568,7 @@ document.addEventListener('touchstart', (e) => {
 }, {passive: false});
 
 document.addEventListener('touchmove', (e) => {
+    if (isDraggingLocator) { e.preventDefault(); handleLocatorMove(e.touches ? e.touches[0].clientX : e.clientX); return; }
     if (isResizing) { e.preventDefault(); handleResizeMove(e.touches[0].clientX); return; }
     // ITT IS JAVÍTVA: Mindkét koordinátát átadjuk!
     if (isDraggingClip) { e.preventDefault(); handleClipDragMove(e.touches[0].clientX, e.touches[0].clientY); return; }
@@ -1774,6 +1858,50 @@ function scheduler() {
     timerID = setTimeout(scheduler, lookahead);
 }
 
+// Ezt a függvényt mostantól többször is meg tudjuk hívni (induláskor és loopoláskor is)
+function scheduleClips(offsetTime) {
+    const allClips = document.querySelectorAll('.audio-clip');
+    
+    allClips.forEach(clipDiv => {
+        const buffer = clipDiv.audioBuffer;
+        const clipStartTimeline = parseFloat(clipDiv.dataset.start); 
+        const clipDuration = parseFloat(clipDiv.dataset.duration);
+        const trimOffset = parseFloat(clipDiv.dataset.trimOffset || 0); 
+        const clipEndTimeline = clipStartTimeline + clipDuration;
+
+        if (offsetTime < clipEndTimeline) {
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            const parentTrack = clipDiv.closest('.track-container');
+            
+            if (parentTrack && parentTrack.trackPannerNode) {
+                source.connect(parentTrack.trackPannerNode); 
+            } else {
+                source.connect(masterGain); 
+            }
+            
+            let whenToStart = 0; 
+            let offsetInFile = 0; 
+
+            if (offsetTime > clipStartTimeline) {
+                whenToStart = 0; 
+                offsetInFile = (offsetTime - clipStartTimeline) + trimOffset;
+            } else {
+                whenToStart = clipStartTimeline - offsetTime;
+                offsetInFile = trimOffset;
+            }
+
+            let playDuration = clipDuration;
+            if (offsetTime > clipStartTimeline) {
+                playDuration = clipEndTimeline - offsetTime;
+            }
+
+            source.start(audioCtx.currentTime + whenToStart, offsetInFile, playDuration);
+            audioSources.push(source);
+        }
+    });
+}
+
 function startPlayback() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     isPlaying = true;
@@ -1794,48 +1922,10 @@ function startPlayback() {
         startRecording(startOffset); 
     }
 
-    const allClips = document.querySelectorAll('.audio-clip');
+    // Hangok ürítése és az ÚJ függvényünk meghívása!
     audioSources = []; 
+    scheduleClips(startOffset);
 
-    allClips.forEach(clipDiv => {
-        const buffer = clipDiv.audioBuffer;
-        const clipStartTimeline = parseFloat(clipDiv.dataset.start); 
-        const clipDuration = parseFloat(clipDiv.dataset.duration);
-        const trimOffset = parseFloat(clipDiv.dataset.trimOffset || 0); 
-        const clipEndTimeline = clipStartTimeline + clipDuration;
-
-        if (startOffset < clipEndTimeline) {
-            const source = audioCtx.createBufferSource();
-            source.buffer = buffer;
-            const parentTrack = clipDiv.closest('.track-container');
-            
-            // BEKÖTJÜK A PANNERBE, HOGY A PANORÁMA IS SZÓLJON
-            if (parentTrack && parentTrack.trackPannerNode) {
-                source.connect(parentTrack.trackPannerNode); 
-            } else {
-                source.connect(masterGain); 
-            }
-            
-            let whenToStart = 0; 
-            let offsetInFile = 0; 
-
-            if (startOffset > clipStartTimeline) {
-                whenToStart = 0; 
-                offsetInFile = (startOffset - clipStartTimeline) + trimOffset;
-            } else {
-                whenToStart = clipStartTimeline - startOffset;
-                offsetInFile = trimOffset;
-            }
-
-            let playDuration = clipDuration;
-            if (startOffset > clipStartTimeline) {
-                playDuration = clipEndTimeline - startOffset;
-            }
-
-            source.start(audioCtx.currentTime + whenToStart, offsetInFile, playDuration);
-            audioSources.push(source);
-        }
-    });
     requestAnimationFrame(updatePlayheadAnim);
 }
 
@@ -1860,6 +1950,34 @@ function updatePlayheadAnim() {
     if (!isPlaying) return;
     const elapsed = audioCtx.currentTime - startPlayTime;
     currentPlayTime = startOffset + elapsed;
+
+    // --- LOOP LOGIKA ITT ---
+    const loopBtn = document.querySelector('.loop-btn');
+    if (loopBtn && loopBtn.classList.contains('active') && currentPlayTime >= loopEndSec) {
+        
+        // 1. Megállítjuk a már ütemezett, túlnyúló hangokat
+        audioSources.forEach(src => { try { src.stop(); } catch(e) {} });
+        audioSources = [];
+        clearTimeout(timerID); // Metronóm (click) leállítása egy pillanatra
+
+        // 2. Visszaugrunk a Loop elejére
+        currentPlayTime = loopStartSec;
+        startOffset = loopStartSec;
+        startPlayTime = audioCtx.currentTime; // Az "új" 0. másodperc most van!
+
+        // 3. Metronóm újraütemezése
+        const secondsPerBeat = 60.0 / bpm;
+        const beatsPassed = Math.round((startOffset / secondsPerBeat) * 10000) / 10000;
+        const nextBeatIndex = Math.ceil(beatsPassed);
+        currentQuarterNote = nextBeatIndex % timeSig[0];
+        const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerBeat;
+        nextNoteTime = audioCtx.currentTime + nextBeatDelay;
+        scheduler();
+
+        // 4. Klipek újraindítása az új pozícióból!
+        scheduleClips(startOffset);
+    }
+    // --- LOOP LOGIKA VÉGE ---
 
     const screenX = 164 + (currentPlayTime * PX_PER_SECOND) - globalScrollX;
     const containerWidth = window.innerWidth;
