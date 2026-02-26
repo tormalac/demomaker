@@ -1065,31 +1065,77 @@ gridDropdown.querySelectorAll('button').forEach(btn => {
   });
 });
 
+// --- SELECT GOMB EXTRA FUNKCIÓ: Kijelölések törlése kattintáskor ---
+const selectToolBtn = document.querySelector('.select-btn');
+if (selectToolBtn) {
+    selectToolBtn.addEventListener('click', () => {
+        // 1. Levesszük a fehér keretet az összes kijelölt klipről
+        document.querySelectorAll('.audio-clip.selected-clip').forEach(clip => {
+            clip.classList.remove('selected-clip');
+        });
+        
+        // 2. Biztonsági nullázás a memóriában
+        isDraggingClip = false;
+        draggedClip = null;
+        selectedClip = null;
+    });
+}
+
 const cutBtn = document.querySelector('.cut-btn');
 function performCut(e) {
-    e.preventDefault(); 
+    if (e.cancelable) e.preventDefault(); 
     e.stopPropagation();
-    const selected = document.querySelector('.audio-clip.selected-clip');
-    if (!selected) return;
-    const clipStart = parseFloat(selected.dataset.start);
-    const clipDur = parseFloat(selected.dataset.duration);
-    const clipEnd = clipStart + clipDur;
     
-    if (currentPlayTime > clipStart && currentPlayTime < clipEnd) {
-        const buffer = selected.audioBuffer;
-        const parent = selected.parentElement;
-        const name = selected.querySelector('.clip-name').textContent;
-        const originalTrim = parseFloat(selected.dataset.trimOffset || 0);
-        const cutPointRelative = currentPlayTime - clipStart;
-        
-        selected.remove(); 
-        addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative);
-        const remainingDuration = clipDur - cutPointRelative;
-        const newTrimOffset = originalTrim + cutPointRelative;
-        addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration);
-    } else {
-        alert("A Playhead nem érinti a kijelölt klipet!");
+    // Lekérjük az ÖSSZES kijelölt klipet (hiszen most már több is lehet!)
+    const selectedClips = document.querySelectorAll('.audio-clip.selected-clip');
+    
+    if (selectedClips.length === 0) {
+        alert("Nincs kijelölve klip a vágáshoz!");
+        cutBtn.classList.remove('active');
+        return;
     }
+
+    let cutCount = 0;
+
+    selectedClips.forEach(selected => {
+        const clipStart = parseFloat(selected.dataset.start);
+        const clipDur = parseFloat(selected.dataset.duration);
+        const clipEnd = clipStart + clipDur;
+        
+        // Csak azt a klipet vágjuk el, amit épp metsz a Playhead (piros vonal)
+        if (currentPlayTime > clipStart && currentPlayTime < clipEnd) {
+            const buffer = selected.audioBuffer;
+            const parent = selected.parentElement; // Ez a .clips div
+            const name = selected.querySelector('.clip-name').textContent;
+            const originalTrim = parseFloat(selected.dataset.trimOffset || 0);
+            
+            // Kiszámoljuk, hol vágunk a klipen belül (másodpercben)
+            const cutPointRelative = currentPlayTime - clipStart;
+            
+            // 1. Eredeti klip eltüntetése
+            selected.remove(); 
+            
+            // 2. BAL OLDALI DARAB létrehozása (a vágópontig)
+            addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative);
+            
+            // 3. JOBB OLDALI DARAB létrehozása (a vágóponttól a végéig)
+            const remainingDuration = clipDur - cutPointRelative;
+            const newTrimOffset = originalTrim + cutPointRelative;
+            addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration);
+            
+            cutCount++;
+        }
+    });
+
+    if (cutCount === 0) {
+        alert("A Playhead (piros vonal) nem érinti a kijelölt klipet(eket)!");
+    } else {
+        // Haptikus visszajelzés mobilon
+        if (navigator.vibrate) navigator.vibrate(50);
+    }
+    
+    // Gomb vizuális kikapcsolása kattintás után
+    setTimeout(() => cutBtn.classList.remove('active'), 150);
 }
 cutBtn.addEventListener('touchstart', performCut, {passive: false});
 cutBtn.addEventListener('click', performCut);
@@ -1098,33 +1144,80 @@ const duplicateBtn = document.querySelector('.duplicate-btn');
 function performDuplicate(e) {
     if (e.cancelable) e.preventDefault();
     e.stopPropagation();
-    const selected = document.querySelector('.audio-clip.selected-clip');
-    if (!selected) return;
-    const parent = selected.parentElement; 
-    const buffer = selected.audioBuffer;   
-    const name = selected.querySelector('.clip-name').textContent; 
-    const currentStart = parseFloat(selected.dataset.start);
-    const currentDuration = parseFloat(selected.dataset.duration);
-    const currentTrim = parseFloat(selected.dataset.trimOffset || 0);
-    const newStart = currentStart + currentDuration;
-    addClipToTrack(parent, buffer, name, newStart, currentTrim, currentDuration);
+    
+    const selectedClips = document.querySelectorAll('.audio-clip.selected-clip');
+    
+    if (selectedClips.length === 0) {
+        alert("Nincs kijelölve klip a duplikáláshoz!");
+        if (duplicateBtn) duplicateBtn.classList.remove('active');
+        return;
+    }
+
+    // Ide gyűjtjük az újonnan létrehozott másolatokat
+    const newlyCreatedClips = [];
+
+    selectedClips.forEach(selected => {
+        const parent = selected.parentElement; 
+        const buffer = selected.audioBuffer;   
+        const name = selected.querySelector('.clip-name').textContent; 
+        
+        const currentStart = parseFloat(selected.dataset.start);
+        const currentDuration = parseFloat(selected.dataset.duration);
+        const currentTrim = parseFloat(selected.dataset.trimOffset || 0);
+        
+        const newStart = currentStart + currentDuration;
+        
+        // Létrehozzuk a másolatot, és azonnal beletesszük a tömbünkbe
+        const newClip = addClipToTrack(parent, buffer, name, newStart, currentTrim, currentDuration);
+        if (newClip) newlyCreatedClips.push(newClip);
+    });
+
+    // 1. Töröljük a kijelölést az EREDETI klipekről
+    selectedClips.forEach(c => c.classList.remove('selected-clip'));
+
+    // 2. Rátesszük a kijelölést az ÚJ klipekre
+    newlyCreatedClips.forEach(c => c.classList.add('selected-clip'));
+
+    // Vizuális és haptikus visszajelzés
     if (navigator.vibrate) navigator.vibrate(50);
+    setTimeout(() => {
+        if (duplicateBtn) duplicateBtn.classList.remove('active');
+    }, 150);
 }
+
 if (duplicateBtn) {
     duplicateBtn.addEventListener('touchstart', performDuplicate, {passive: false});
     duplicateBtn.addEventListener('click', performDuplicate);
 }
 
 const deleteBtn = document.querySelector('.delete-btn');
+
 function performDelete(e) {
     if (e.cancelable) e.preventDefault();
     e.stopPropagation();
-    const selected = document.querySelector('.audio-clip.selected-clip');
-    if (selected) {
-        selected.remove();
-        if (navigator.vibrate) navigator.vibrate([50, 50, 50]); 
+    
+    // 1. Megkeressük az ÖSSZES kijelölt klipet
+    const selectedClips = document.querySelectorAll('.audio-clip.selected-clip');
+    
+    if (selectedClips.length === 0) {
+        if (deleteBtn) deleteBtn.classList.remove('active');
+        return; // Ha nincs mit törölni, kilépünk
     }
+
+    // 2. Végigmegyünk a listán, és mindet eltüntetjük a DOM-ból
+    selectedClips.forEach(clip => {
+        clip.remove();
+    });
+
+    // 3. Haptikus visszajelzés (rezgés) mobilon
+    if (navigator.vibrate) navigator.vibrate([50, 50, 50]); 
+    
+    // Gomb vizuális kikapcsolása egy kis késleltetéssel
+    setTimeout(() => {
+        if (deleteBtn) deleteBtn.classList.remove('active');
+    }, 150);
 }
+
 if (deleteBtn) {
     deleteBtn.addEventListener('touchstart', performDelete, {passive: false});
     deleteBtn.addEventListener('click', performDelete);
@@ -1380,28 +1473,49 @@ let clipStartLeft = 0;
 let clipMouseStartX = 0;
 let selectedClip = null;
 let targetTrackForClip = null;
+let hasDraggedClip = false;
 
-// --- 1. KLIP KIJELÖLÉSE ---
-function handleClipInteraction(clientX, target) {
-    const selectBtn = document.querySelector('.select-btn');
-    if (!selectBtn || !selectBtn.classList.contains('active')) return false;
-
-    const clip = target.closest('.audio-clip');
-    document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
-
-    if (clip) {
-        isDraggingClip = true;
-        draggedClip = clip;
-        selectedClip = clip;
-        clip.classList.add('selected-clip'); 
-        
-        clipMouseStartX = clientX;
-        clipStartLeft = parseFloat(clip.style.left) || 0;
-        return true;
-    } else {
-        selectedClip = null;
+// --- 1. KLIP KIJELÖLÉSE ÉS DRAG INDÍTÁSA ---
+function handleClipInteraction(clientX, target, e) {
+    if (target.closest('.control-panel') || target.closest('.track-actions') || target.closest('.timeline-ruler') || target.tagName === 'BUTTON' || target.closest('button')) {
+        return false;
     }
-    return false;
+
+    const selectBtn = document.querySelector('.select-btn');
+    const isSelectMode = selectBtn && selectBtn.classList.contains('active');
+    const clip = target.closest('.audio-clip');
+
+    // Ha az üres sávra kattintunk
+    if (!clip) {
+        document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+        return false;
+    }
+
+    // HA NINCS BEKAPCSOLVA A SELECT ESZKÖZ, NE LEHESSEN KIJELÖLNI SEMMIT!
+    if (!isSelectMode) return false;
+
+    const wasSelected = clip.classList.contains('selected-clip');
+
+    // Ha még nem volt kijelölve, azonnal rátesszük, hogy lehessen húzni a többivel együtt
+    if (!wasSelected) {
+        clip.classList.add('selected-clip');
+        clip.dataset.justSelected = 'true'; // Megjegyezzük, hogy most kapta meg
+    } else {
+        clip.dataset.justSelected = 'false'; // Már ki volt jelölve
+    }
+
+    // Felkészülünk a húzásra
+    isDraggingClip = true;
+    draggedClip = clip;
+    clipMouseStartX = clientX;
+    hasDraggedClip = false; // Még nem mozdítottuk el az egeret/ujjat!
+
+    // Elmentjük minden kijelölt klip kiinduló pozícióját
+    document.querySelectorAll('.selected-clip').forEach(c => {
+        c.dataset.startLeft = parseFloat(c.style.left) || 0;
+    });
+
+    return true;
 }
 
 function getSnapPx() {
@@ -1413,33 +1527,37 @@ function getSnapPx() {
     return gridSeconds * PX_PER_SECOND;
 }
 
-// --- 2. KLIP MOZGATÁSA ÉS CÉL-SÁV KIEMELÉSE ---
+// --- 2. KLIPEK MOZGATÁSA ÉS CÉL-SÁV KIEMELÉSE ---
 function handleClipDragMove(clientX, clientY) {
     if (!isDraggingClip || !draggedClip) return;
     
-    // Vízszintes mozgatás a Timeline-on
     const walk = clientX - clipMouseStartX;
-    let newLeft = clipStartLeft + walk;
-    if (newLeft < 0) newLeft = 0;
-
-    const snapPx = getSnapPx();
-    if (snapPx > 0) {
-        newLeft = Math.round(newLeft / snapPx) * snapPx;
+    
+    // Ha legalább 2 pixelt elmozdítottuk az egeret, az már húzás (nem sima kattintás)
+    if (Math.abs(walk) > 2) {
+        hasDraggedClip = true;
     }
 
-    draggedClip.style.left = newLeft + 'px';
-    draggedClip.dataset.start = newLeft / PX_PER_SECOND; 
+    // MINDEN kijelölt klipet mozgatunk
+    document.querySelectorAll('.selected-clip').forEach(clip => {
+        let newLeft = parseFloat(clip.dataset.startLeft) + walk;
+        if (newLeft < 0) newLeft = 0;
 
-    // Ha véletlenül nincs clientY, kilépünk, nehogy hibára fusson
+        const snapPx = getSnapPx();
+        if (snapPx > 0) {
+            newLeft = Math.round(newLeft / snapPx) * snapPx;
+        }
+
+        clip.style.left = newLeft + 'px';
+        clip.dataset.start = newLeft / PX_PER_SECOND; 
+    });
+
     if (clientY === undefined) return;
-
-    // Függőleges mozgatás: Melyik sáv felett vagyunk?
     const originalPointerEvents = draggedClip.style.pointerEvents;
-    draggedClip.style.pointerEvents = 'none'; // Keresztüllátunk a klipen
+    draggedClip.style.pointerEvents = 'none';
     const elemBelow = document.elementFromPoint(clientX, clientY);
     draggedClip.style.pointerEvents = originalPointerEvents;
 
-    // Előző kiemelés levétele
     document.querySelectorAll('.track-container').forEach(t => t.classList.remove('drag-over-target'));
     targetTrackForClip = null;
 
@@ -1447,12 +1565,42 @@ function handleClipDragMove(clientX, clientY) {
         const hoverTrack = elemBelow.closest('.track-container');
         const currentTrack = draggedClip.closest('.track-container');
 
-        // Ha egy ÚJ sáv felett vagyunk, kiemeljük
         if (hoverTrack && hoverTrack !== currentTrack) {
             targetTrackForClip = hoverTrack;
             hoverTrack.classList.add('drag-over-target');
         }
     }
+}
+
+// --- 4. A KLIP ELENGEDÉSE (DROP) ---
+function handleClipDragEnd() {
+    if (!isDraggingClip || !draggedClip) return;
+
+    // Ha volt cél-sáv, az ÖSSZES kijelölt klipet átdobjuk oda
+    if (targetTrackForClip) {
+        const newClipsContainer = targetTrackForClip.querySelector('.clips');
+        if (newClipsContainer) {
+            document.querySelectorAll('.selected-clip').forEach(clip => {
+                newClipsContainer.appendChild(clip);
+                updateClipColor(clip, targetTrackForClip); 
+            });
+        }
+    }
+    
+    // Töröljük a sáv vizuális kiemelését
+    document.querySelectorAll('.track-container').forEach(t => t.classList.remove('drag-over-target'));
+
+    // --- A JAVÍTOTT TOGGLE LOGIKA ---
+    // Ha NEM mozdítottuk el az egeret (tehát csak egy sima kattintás volt)
+    // ÉS már előtte is ki volt jelölve, akkor most VESSZÜK LE a kijelölést!
+    if (!hasDraggedClip && draggedClip.dataset.justSelected === 'false') {
+        draggedClip.classList.remove('selected-clip');
+    }
+
+    // Takarítás
+    isDraggingClip = false;
+    draggedClip = null;
+    targetTrackForClip = null;
 }
 
 // --- 3. KLIP ÁTSZÍNEZÉSE ---
@@ -1468,25 +1616,6 @@ function updateClipColor(clip, track) {
     if (canvas && clip.audioBuffer) {
         drawWaveform(canvas, clip.audioBuffer, waveColor);
     }
-}
-
-// --- 4. A KLIP ELENGEDÉSE (DROP) ---
-function handleClipDragEnd() {
-    if (!isDraggingClip || !draggedClip) return;
-
-    // Ha volt cél-sáv, átdobjuk oda
-    if (targetTrackForClip) {
-        const newClipsContainer = targetTrackForClip.querySelector('.clips');
-        if (newClipsContainer) {
-            newClipsContainer.appendChild(draggedClip);
-            updateClipColor(draggedClip, targetTrackForClip); 
-        }
-    }
-
-    document.querySelectorAll('.track-container').forEach(t => t.classList.remove('drag-over-target'));
-    isDraggingClip = false;
-    draggedClip = null;
-    targetTrackForClip = null;
 }
 
 // --- 5. BERAGADÁS ELLENI VÉDELEM (RESET) ---
@@ -1512,6 +1641,8 @@ function resetAllInteractions() {
 // --- 6. PC (EGÉR) ESEMÉNYEK ---
 document.addEventListener('mousedown', (e) => {
     if (e.target.closest('.track-inspector') || isResizing) return;
+
+    if (handleClipInteraction(e.clientX, e.target, e)) return;
 
     const selectBtn = document.querySelector('.select-btn');
     const isSelectMode = selectBtn && selectBtn.classList.contains('active');
@@ -1554,7 +1685,7 @@ document.addEventListener('mouseup', resetAllInteractions);
 // --- 7. MOBIL (ÉRINTÉS) ESEMÉNYEK ---
 document.addEventListener('touchstart', (e) => {
     if (e.touches.length > 1) return; 
-    if (handleClipInteraction(e.touches[0].clientX, e.target)) return;
+    if (handleClipInteraction(e.touches[0].clientX, e.target, e)) return;
 
     if (e.target.closest('.track-area') || e.target.closest('.timeline-ruler')) {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
@@ -1727,6 +1858,8 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
     clip.appendChild(rightHandle);
 
     container.appendChild(clip);
+
+    return clip;
 }
 
 async function startRecording(startTimeOffset) {
