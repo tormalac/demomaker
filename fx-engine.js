@@ -15,14 +15,16 @@ fxStyles.innerHTML = `
     #fx-modal {
         background: #111; border: 1px solid var(--accent); border-radius: 4px;
         width: 90%; max-width: 800px; 
-        min-height: 450px; /* <-- EZ HIÁNYZOTT! Ettől nem esik össze üresen */
-        max-height: 90vh; 
+        /* min-height: 450px; <-- EZT KIVETTÜK, mert ez tolta ki a képernyőről */
+        height: 90vh; /* Legyen dinamikus, de max a képernyő 90%-a */
+        max-height: 800px; 
         display: flex; flex-direction: column;
         box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;
     }
     .fx-header {
         background: #000; padding: 10px 20px; border-bottom: 1px solid #333;
         display: flex; justify-content: space-between; align-items: center;
+        flex-shrink: 0; /* Hogy a fejléc sose nyomódjon össze kis képernyőn! */
     }
     .fx-header h2 { margin: 0; font-size: 1rem; color: #fff; font-family: var(--font-mono); }
     .close-fx { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1.5rem; }
@@ -309,21 +311,32 @@ function setupKnobs(wrapper, pluginInstance, type) {
     const knobs = wrapper.querySelectorAll('.knob');
     let activeKnob = null; let startY = 0; let startVal = 0;
 
+    // --- INTERAKCIÓ INDÍTÁSA (Egér + Érintés) ---
+    const startDrag = (e, knob) => {
+        if(e.cancelable) e.preventDefault(); // Megakadályozza a görgetést
+        activeKnob = knob; 
+        // Megnézzük, hogy touch esemény-e, vagy egér
+        startY = e.touches ? e.touches[0].clientY : e.clientY; 
+        startVal = parseFloat(knob.dataset.val);
+        document.body.style.cursor = 'ns-resize';
+    };
+
     knobs.forEach(knob => {
         updateKnobVisuals(knob, parseFloat(knob.dataset.val), type);
-        knob.addEventListener('mousedown', (e) => {
-            activeKnob = knob; startY = e.clientY; startVal = parseFloat(knob.dataset.val);
-            document.body.style.cursor = 'ns-resize';
-        });
+        knob.addEventListener('mousedown', (e) => startDrag(e, knob));
+        knob.addEventListener('touchstart', (e) => startDrag(e, knob), {passive: false});
     });
 
-    document.addEventListener('mousemove', (e) => {
+    // --- HÚZÁS KEZELÉSE ---
+    const moveDrag = (e) => {
         if (!activeKnob || !wrapper.contains(activeKnob)) return;
+        e.preventDefault(); // Ne görgessen az oldal tekerés közben!
         
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const min = parseFloat(activeKnob.dataset.min); const max = parseFloat(activeKnob.dataset.max);
         const param = activeKnob.dataset.param; const isStep = activeKnob.dataset.step === 'true';
         
-        let deltaY = startY - e.clientY;
+        let deltaY = startY - clientY;
         let newVal = startVal + (deltaY * ((max - min) / 150)); 
         
         if (newVal < min) newVal = min; if (newVal > max) newVal = max;
@@ -349,9 +362,21 @@ function setupKnobs(wrapper, pluginInstance, type) {
             if (param === 'gain') pluginInstance.setGain(newVal);
             else if (param === 'peakReduction') pluginInstance.setPeakReduction(newVal);
         }
-    });
+    };
 
-    document.addEventListener('mouseup', () => { activeKnob = null; document.body.style.cursor = ''; });
+    // --- INTERAKCIÓ BEFEJEZÉSE ---
+    const endDrag = () => { 
+        activeKnob = null; 
+        document.body.style.cursor = ''; 
+    };
+
+    // Eseményfigyelők rögzítése a teljes dokumentumra
+    document.addEventListener('mousemove', moveDrag);
+    document.addEventListener('touchmove', moveDrag, {passive: false});
+
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+    document.addEventListener('touchcancel', endDrag);
 }
 
 function updateKnobVisuals(knob, val, type) {
