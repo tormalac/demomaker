@@ -12,8 +12,8 @@ fxStyles.innerHTML = `
         display: none; 
         align-items: flex-start; 
         justify-content: center;
-        overflow-y: auto; /* A háttér görgethető lesz, ha az ablak nem fér ki */
-        padding: 20px 0; /* Pici biztonsági sáv alul-felül */
+        overflow-y: auto; 
+        padding: 20px 0;
         backdrop-filter: blur(5px);
     }
     #fx-modal {
@@ -23,7 +23,9 @@ fxStyles.innerHTML = `
         flex-shrink: 0; /* Megakadályozza, hogy a böngésző összenyomja a modalt */
         margin: auto; /* Ez a varázslat: ha van hely, középre teszi, ha nincs, marad fent és görgethető! */
         display: flex; flex-direction: column;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        overflow-x: hidden;
+        overflow-y: auto;
     }
     .fx-header {
         background: #000; padding: 10px 20px; border-bottom: 1px solid #333;
