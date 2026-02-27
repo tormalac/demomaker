@@ -9,15 +9,19 @@ fxStyles.innerHTML = `
         position: fixed; 
         top: 0; bottom: 0; left: 0; right: 0;
         background: rgba(0,0,0,0.85); z-index: 3000;
-        display: none; align-items: center; justify-content: center;
+        display: none; 
+        align-items: flex-start; 
+        justify-content: center;
+        overflow-y: auto; /* A háttér görgethető lesz, ha az ablak nem fér ki */
+        padding: 20px 0; /* Pici biztonsági sáv alul-felül */
         backdrop-filter: blur(5px);
     }
     #fx-modal {
         background: #111; border: 1px solid var(--accent); border-radius: 4px;
         width: 90%; max-width: 800px; 
-        /* min-height: 450px; <-- EZT KIVETTÜK, mert ez tolta ki a képernyőről */
-        height: 90vh; /* Legyen dinamikus, de max a képernyő 90%-a */
-        max-height: 800px; 
+        min-height: 480px; /* Visszakapja a szép, fix alapmagasságát */
+        flex-shrink: 0; /* Megakadályozza, hogy a böngésző összenyomja a modalt */
+        margin: auto; /* Ez a varázslat: ha van hely, középre teszi, ha nincs, marad fent és görgethető! */
         display: flex; flex-direction: column;
         box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;
     }
