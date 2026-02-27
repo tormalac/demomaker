@@ -30,7 +30,8 @@ fxStyles.innerHTML = `
     .fx-header {
         background: #000; padding: 10px 20px; border-bottom: 1px solid #333;
         display: flex; justify-content: space-between; align-items: center;
-        flex-shrink: 0; /* Hogy a fejléc sose nyomódjon össze kis képernyőn! */
+        flex-shrink: 0;
+        text-transform: uppercase;
     }
     .fx-header h2 { margin: 0; font-size: 1rem; color: #fff; font-family: var(--font-mono); }
     .close-fx { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1.5rem; }
@@ -44,31 +45,38 @@ fxStyles.innerHTML = `
         width: 200px; background: #0a0a0a; border-right: 1px solid #333; 
         padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; 
     }
-    #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 50px; }
+    #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 100px; }
     .fx-slot {
         background: #1a1a1a; border: 1px solid #333; padding: 10px; margin-bottom: 5px;
         color: #aaa; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem;
-        display: flex; justify-content: space-between; align-items: center;
+        display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; max-width: 200px;
     }
     .fx-slot:hover { border-color: var(--accent-soft); color: #fff; }
     .fx-slot.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,213,0.05); }
     
     /* Plugin Választó Menü */
-    .add-fx-wrap { position: relative; }
+    .add-fx-wrap { 
+        position: relative; 
+        max-width: 200px; 
+        box-sizing: border-box; 
+    }
     .add-fx-btn {
-        width: 100%; background: transparent; border: 1px solid #555; color: #888;
+        max-width: 100%; background: transparent; border: 1px solid #555; color: #888;
         padding: 8px; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem;
+        box-sizing: border-box; 
     }
     .add-fx-btn:hover { border-color: var(--accent); color: var(--accent); }
     
     #plugin-picker {
         display: none; position: absolute; bottom: 100%; left: 0; width: 100%;
         background: #000; border: 1px solid var(--accent-soft); margin-bottom: 4px;
+        box-sizing: border-box; /* <-- EZ PEDIG A LENYÍLÓ MENÜ KERETÉT FOGJA MEG */
     }
     #plugin-picker.show { display: block; }
     .plugin-pick-btn {
         width: 100%; background: transparent; border: none; color: #fff;
         padding: 10px; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem; text-align: left;
+        box-sizing: border-box; /* <-- ÉS A BELSŐ GOMBOKAT IS */
     }
     .plugin-pick-btn:hover { background: rgba(0,255,213,0.1); color: var(--accent); }
 
@@ -86,12 +94,12 @@ fxStyles.innerHTML = `
             width: 100%;
             border-right: none;
             border-bottom: 1px solid #333;
-            min-height: 120px; /* <-- Mobilon is legyen egy fix helye a menünek */
+            min-height: 120px; 
             max-height: 180px; 
         }
         .fx-plugin-area {
             align-items: flex-start; 
-            min-height: 300px; /* <-- Ettől nem ugrik össze, ha nincs plugin kiválasztva */
+            min-height: 300px; 
         }
         .plugin-nv73, .plugin-la2a {
             transform: scale(0.85); 
