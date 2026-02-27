@@ -485,16 +485,87 @@ document.addEventListener('click', (e) => {
 
 function renderFxList(track) {
     fxList.innerHTML = '';
+    
+    // Változó a húzott elem indexének tárolására
+    let draggedIndex = null;
+
     track.fxChain.forEach((fx, index) => {
         const slot = document.createElement('div');
         slot.className = 'fx-slot';
+        
+        // --- DRAG AND DROP AKTIVÁLÁSA ---
+        slot.setAttribute('draggable', 'true');
+        
         slot.innerHTML = `<span>${fx.name}</span> <span style="color: var(--accent); font-size: 1.1em; transition: text-shadow 0.2s;" onmouseover="this.style.textShadow='0 0 8px var(--accent)'" onmouseout="this.style.textShadow='none'">×</span>`;
         
+        // 1. Amikor elkezdjük húzni
+        slot.addEventListener('dragstart', (e) => {
+            draggedIndex = index;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'fx-plugin'); // Kötelező a Firefoxhoz
+            setTimeout(() => slot.style.opacity = '0.4', 0); // Vizuális visszajelzés
+        });
+
+        // 2. Amikor egy másik elem fölé érünk húzás közben
+        slot.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Ez engedélyezi, hogy rá lehessen dobni
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Ha nem önmaga fölött van, mutassunk egy vonalat, ahova kerülni fog
+            if (draggedIndex !== index) {
+                slot.style.borderTop = '2px solid var(--accent)'; 
+            }
+        });
+
+        // 3. Amikor elhagyjuk az elemet húzás közben
+        slot.addEventListener('dragleave', () => {
+            slot.style.borderTop = ''; // Vonal eltüntetése
+        });
+
+        // 4. Amikor ráengedjük (DROP)
+        slot.addEventListener('drop', (e) => {
+            e.preventDefault();
+            slot.style.borderTop = '';
+            
+            const dropIndex = index;
+            
+            // Ha tényleg elmozdítottuk (nem ugyanoda engedtük el)
+            if (draggedIndex !== null && draggedIndex !== dropIndex) {
+                
+                // 1. Kivesszük az eredeti helyéről
+                const draggedItem = track.fxChain.splice(draggedIndex, 1)[0];
+                
+                // 2. Beszúrjuk az új helyére
+                track.fxChain.splice(dropIndex, 0, draggedItem);
+                
+                // 3. AUDIÓ JELÚT ÚJRAÉPÍTÉSE AZ ÚJ SORREND ALAPJÁN!
+                rebuildFxRouting(track);
+                
+                // 4. Újrarajzoljuk a listát
+                renderFxList(track);
+                
+                // 5. Automatikusan megnyitjuk és kijelöljük a mozgatott plugint
+                openPluginUI(track, dropIndex);
+                setTimeout(() => {
+                    const slots = document.querySelectorAll('.fx-slot');
+                    slots.forEach(s => s.classList.remove('active'));
+                    if(slots[dropIndex]) slots[dropIndex].classList.add('active');
+                }, 10);
+            }
+        });
+
+        // 5. Húzás befejezése (Takarítás)
+        slot.addEventListener('dragend', () => {
+            slot.style.opacity = '1';
+            document.querySelectorAll('.fx-slot').forEach(s => s.style.borderTop = '');
+        });
+
+        // --- KLIKK ESEMÉNYEK (Megnyitás / Törlés) ---
         slot.onclick = (e) => {
             if (e.target.tagName === 'SPAN' && e.target.textContent === '×') {
                 track.fxChain.splice(index, 1);
                 rebuildFxRouting(track);
-                fxArea.innerHTML = '<div style="color:#555; font-family:monospace;">Select or Add a plugin...</div>';
+                fxArea.innerHTML = '<div style="color:#555; font-family:var(--font-mono); font-size: 0.9rem;">Select or Add a plugin...</div>';
                 renderFxList(track);
             } else {
                 document.querySelectorAll('.fx-slot').forEach(s => s.classList.remove('active'));
@@ -505,7 +576,7 @@ function renderFxList(track) {
         fxList.appendChild(slot);
     });
 
-    // --- Zöldítés logika ---
+    // --- ZÖLDÍTÉS LOGIKA ---
     const insertBtn = track.querySelector('.track-inserts');
     if (insertBtn) {
         if (track.fxChain.length > 0) {
