@@ -4,16 +4,20 @@
 
 const fxStyles = document.createElement('style');
 fxStyles.innerHTML = `
-    /* --- FX Modal Alap Stílusok --- */
+    /* --- FX Modal Alap Stílusok (Reszponzív) --- */
     #fx-modal-overlay {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(0,0,0,0.8); z-index: 3000;
+        position: fixed; 
+        top: 0; bottom: 0; left: 0; right: 0;
+        background: rgba(0,0,0,0.85); z-index: 3000;
         display: none; align-items: center; justify-content: center;
         backdrop-filter: blur(5px);
     }
     #fx-modal {
         background: #111; border: 1px solid var(--accent); border-radius: 4px;
-        width: 800px; min-height: 400px; display: flex; flex-direction: column;
+        width: 90%; max-width: 800px; 
+        min-height: 450px; /* <-- EZ HIÁNYZOTT! Ettől nem esik össze üresen */
+        max-height: 90vh; 
+        display: flex; flex-direction: column;
         box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;
     }
     .fx-header {
@@ -23,11 +27,16 @@ fxStyles.innerHTML = `
     .fx-header h2 { margin: 0; font-size: 1rem; color: #fff; font-family: var(--font-mono); }
     .close-fx { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1.5rem; }
     
-    .fx-body { display: flex; flex: 1; }
+    .fx-body { 
+        display: flex; flex: 1; flex-direction: row; overflow: hidden; 
+    }
     
     /* FX Lánc (Bal oldal) */
-    .fx-chain-sidebar { width: 200px; background: #0a0a0a; border-right: 1px solid #333; padding: 10px; display: flex; flex-direction: column; }
-    #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; }
+    .fx-chain-sidebar { 
+        width: 200px; background: #0a0a0a; border-right: 1px solid #333; 
+        padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; 
+    }
+    #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 50px; }
     .fx-slot {
         background: #1a1a1a; border: 1px solid #333; padding: 10px; margin-bottom: 5px;
         color: #aaa; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem;
@@ -55,8 +64,33 @@ fxStyles.innerHTML = `
     }
     .plugin-pick-btn:hover { background: rgba(0,255,213,0.1); color: var(--accent); }
 
-    .fx-plugin-area { flex: 1; display: flex; align-items: center; justify-content: center; background: #151515; padding: 20px; }
+    .fx-plugin-area { 
+        flex: 1; display: flex; align-items: center; justify-content: center; 
+        background: #151515; padding: 20px; overflow-y: auto;
+    }
 
+    /* --- MOBIL NÉZET --- */
+    @media (max-width: 768px) {
+        .fx-body {
+            flex-direction: column; 
+        }
+        .fx-chain-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #333;
+            min-height: 120px; /* <-- Mobilon is legyen egy fix helye a menünek */
+            max-height: 180px; 
+        }
+        .fx-plugin-area {
+            align-items: flex-start; 
+            min-height: 300px; /* <-- Ettől nem ugrik össze, ha nincs plugin kiválasztva */
+        }
+        .plugin-nv73, .plugin-la2a {
+            transform: scale(0.85); 
+            transform-origin: top center;
+            margin-bottom: 40px;
+        }
+    }
     /* --- KÖZÖS POTMÉTER DIZÁJN --- */
     .knob-container { display: flex; flex-direction: column; align-items: center; gap: 5px; }
     .knob-label { color: #aaa; font-size: 9px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
@@ -396,6 +430,20 @@ document.addEventListener('click', (e) => {
             track.fxChain = []; 
         }
         renderFxList(track);
+
+        // --- ÚJ RÉSZ: Jobb oldali panel frissítése sávváltáskor ---
+        if (track.fxChain.length > 0) {
+            // Ha van effekt az új sávon, nyissuk meg automatikusan a legelsőt
+            openPluginUI(track, 0);
+            // És tegyük "aktívvá" a bal oldali listában is az elsőt
+            setTimeout(() => {
+                const firstSlot = document.querySelector('.fx-slot');
+                if (firstSlot) firstSlot.classList.add('active');
+            }, 10);
+        } else {
+            // Ha üres az új sáv, takarítsuk ki az előző plugin képét
+            fxArea.innerHTML = '<div style="color:#555; font-family:var(--font-mono); font-size: 0.9rem;">Select or Add a plugin...</div>';
+        }
     }
 
     // 2. Bezárás
