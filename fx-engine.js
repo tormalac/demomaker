@@ -9,29 +9,20 @@ fxStyles.innerHTML = `
         position: fixed; 
         top: 0; bottom: 0; left: 0; right: 0;
         background: rgba(0,0,0,0.85); z-index: 3000;
-        display: none; 
-        align-items: flex-start; 
-        justify-content: center;
-        overflow-y: auto; 
-        padding: 20px 0;
+        display: none; align-items: center; justify-content: center;
         backdrop-filter: blur(5px);
     }
     #fx-modal {
         background: #111; border: 1px solid var(--accent); border-radius: 4px;
         width: 90%; max-width: 800px; 
-        min-height: 480px; /* Visszakapja a szép, fix alapmagasságát */
-        flex-shrink: 0; /* Megakadályozza, hogy a böngésző összenyomja a modalt */
-        margin: auto; /* Ez a varázslat: ha van hely, középre teszi, ha nincs, marad fent és görgethető! */
+        min-height: 450px; /* <-- EZ HIÁNYZOTT! Ettől nem esik össze üresen */
+        max-height: 90vh; 
         display: flex; flex-direction: column;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-        overflow-x: hidden;
-        overflow-y: auto;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.8); overflow: hidden;
     }
     .fx-header {
         background: #000; padding: 10px 20px; border-bottom: 1px solid #333;
         display: flex; justify-content: space-between; align-items: center;
-        flex-shrink: 0;
-        text-transform: uppercase;
     }
     .fx-header h2 { margin: 0; font-size: 1rem; color: #fff; font-family: var(--font-mono); }
     .close-fx { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1.5rem; }
@@ -45,38 +36,31 @@ fxStyles.innerHTML = `
         width: 200px; background: #0a0a0a; border-right: 1px solid #333; 
         padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; 
     }
-    #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 100px; }
+    #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 50px; }
     .fx-slot {
         background: #1a1a1a; border: 1px solid #333; padding: 10px; margin-bottom: 5px;
         color: #aaa; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem;
-        display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; max-width: 200px;
+        display: flex; justify-content: space-between; align-items: center;
     }
     .fx-slot:hover { border-color: var(--accent-soft); color: #fff; }
     .fx-slot.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,213,0.05); }
     
     /* Plugin Választó Menü */
-    .add-fx-wrap { 
-        position: relative; 
-        max-width: 200px; 
-        box-sizing: border-box; 
-    }
+    .add-fx-wrap { position: relative; }
     .add-fx-btn {
-        max-width: 100%; background: transparent; border: 1px solid #555; color: #888;
+        width: 100%; background: transparent; border: 1px solid #555; color: #888;
         padding: 8px; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem;
-        box-sizing: border-box; 
     }
     .add-fx-btn:hover { border-color: var(--accent); color: var(--accent); }
     
     #plugin-picker {
         display: none; position: absolute; bottom: 100%; left: 0; width: 100%;
         background: #000; border: 1px solid var(--accent-soft); margin-bottom: 4px;
-        box-sizing: border-box; /* <-- EZ PEDIG A LENYÍLÓ MENÜ KERETÉT FOGJA MEG */
     }
     #plugin-picker.show { display: block; }
     .plugin-pick-btn {
         width: 100%; background: transparent; border: none; color: #fff;
         padding: 10px; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem; text-align: left;
-        box-sizing: border-box; /* <-- ÉS A BELSŐ GOMBOKAT IS */
     }
     .plugin-pick-btn:hover { background: rgba(0,255,213,0.1); color: var(--accent); }
 
@@ -94,12 +78,12 @@ fxStyles.innerHTML = `
             width: 100%;
             border-right: none;
             border-bottom: 1px solid #333;
-            min-height: 120px; 
+            min-height: 120px; /* <-- Mobilon is legyen egy fix helye a menünek */
             max-height: 180px; 
         }
         .fx-plugin-area {
             align-items: flex-start; 
-            min-height: 300px; 
+            min-height: 300px; /* <-- Ettől nem ugrik össze, ha nincs plugin kiválasztva */
         }
         .plugin-nv73, .plugin-la2a {
             transform: scale(0.85); 
@@ -325,32 +309,21 @@ function setupKnobs(wrapper, pluginInstance, type) {
     const knobs = wrapper.querySelectorAll('.knob');
     let activeKnob = null; let startY = 0; let startVal = 0;
 
-    // --- INTERAKCIÓ INDÍTÁSA (Egér + Érintés) ---
-    const startDrag = (e, knob) => {
-        if(e.cancelable) e.preventDefault(); // Megakadályozza a görgetést
-        activeKnob = knob; 
-        // Megnézzük, hogy touch esemény-e, vagy egér
-        startY = e.touches ? e.touches[0].clientY : e.clientY; 
-        startVal = parseFloat(knob.dataset.val);
-        document.body.style.cursor = 'ns-resize';
-    };
-
     knobs.forEach(knob => {
         updateKnobVisuals(knob, parseFloat(knob.dataset.val), type);
-        knob.addEventListener('mousedown', (e) => startDrag(e, knob));
-        knob.addEventListener('touchstart', (e) => startDrag(e, knob), {passive: false});
+        knob.addEventListener('mousedown', (e) => {
+            activeKnob = knob; startY = e.clientY; startVal = parseFloat(knob.dataset.val);
+            document.body.style.cursor = 'ns-resize';
+        });
     });
 
-    // --- HÚZÁS KEZELÉSE ---
-    const moveDrag = (e) => {
+    document.addEventListener('mousemove', (e) => {
         if (!activeKnob || !wrapper.contains(activeKnob)) return;
-        e.preventDefault(); // Ne görgessen az oldal tekerés közben!
         
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const min = parseFloat(activeKnob.dataset.min); const max = parseFloat(activeKnob.dataset.max);
         const param = activeKnob.dataset.param; const isStep = activeKnob.dataset.step === 'true';
         
-        let deltaY = startY - clientY;
+        let deltaY = startY - e.clientY;
         let newVal = startVal + (deltaY * ((max - min) / 150)); 
         
         if (newVal < min) newVal = min; if (newVal > max) newVal = max;
@@ -376,21 +349,9 @@ function setupKnobs(wrapper, pluginInstance, type) {
             if (param === 'gain') pluginInstance.setGain(newVal);
             else if (param === 'peakReduction') pluginInstance.setPeakReduction(newVal);
         }
-    };
+    });
 
-    // --- INTERAKCIÓ BEFEJEZÉSE ---
-    const endDrag = () => { 
-        activeKnob = null; 
-        document.body.style.cursor = ''; 
-    };
-
-    // Eseményfigyelők rögzítése a teljes dokumentumra
-    document.addEventListener('mousemove', moveDrag);
-    document.addEventListener('touchmove', moveDrag, {passive: false});
-
-    document.addEventListener('mouseup', endDrag);
-    document.addEventListener('touchend', endDrag);
-    document.addEventListener('touchcancel', endDrag);
+    document.addEventListener('mouseup', () => { activeKnob = null; document.body.style.cursor = ''; });
 }
 
 function updateKnobVisuals(knob, val, type) {
