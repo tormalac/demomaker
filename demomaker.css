@@ -1257,8 +1257,51 @@ h1, h2, h3 {
     flex-shrink: 0; /* Megakadályozza, hogy összenyomódjon a Master, ha sok sáv van */
 }
 
-/*.mixer-master-container { 
-    position: sticky; right: 0; border-left: 1px solid #222; padding-left: 15px; background: #111; z-index: 100; display: flex; gap: 10px;}*/
+/* --- MASTER VU METER ÉS CLIP LED --- */
+.master-meter-container {
+    width: 100%;
+    padding: 0 4px;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.clip-led {
+    width: 16px;
+    height: 6px;
+    background: #2a2a2a;
+    border: 1px solid #111;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.05s;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.clip-led.clipping {
+    background: #ff4c4c;
+    border-color: #ff4c4c;
+    box-shadow: 0 0 8px #ff4c4c, inset 0 0 2px rgba(255,255,255,0.5);
+    transition: none;
+}
+
+.master-meter-wrap {
+    width: 100%;
+    height: 8px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid #222;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Ugyanazt a színes gradienst használjuk, de itt a Masterre szabva */
+.master-meter-wrap .vu-meter-bg {
+    clip-path: inset(0 100% 0 0);
+    -webkit-clip-path: inset(0 100% 0 0);
+}
 
 .mixer-channel {
     width: 80px;
