@@ -19,18 +19,17 @@ fxStyles.innerHTML = `
     #fx-modal {
         background: #111; border: 1px solid var(--accent); border-radius: 4px;
         width: 90%; max-width: 800px; 
-        min-height: 480px; /* Visszakapja a szép, fix alapmagasságát */
-        flex-shrink: 0; /* Megakadályozza, hogy a böngésző összenyomja a modalt */
-        margin: auto; /* Ez a varázslat: ha van hely, középre teszi, ha nincs, marad fent és görgethető! */
+        min-height: 480px;
+        flex-shrink: 0; 
+        margin: auto; 
         display: flex; flex-direction: column;
         box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-        overflow-x: hidden;
         overflow-y: auto;
     }
     .fx-header {
         background: #000; padding: 10px 20px; border-bottom: 1px solid #333;
         display: flex; justify-content: space-between; align-items: center;
-        flex-shrink: 0;
+        flex-shrink: 0; z-index: 20;
         text-transform: uppercase;
     }
     .fx-header h2 { margin: 0; font-size: 1rem; color: #fff; font-family: var(--font-mono); }
