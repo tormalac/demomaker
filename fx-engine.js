@@ -88,6 +88,7 @@ fxStyles.innerHTML = `
     @media (max-width: 768px) {
         .fx-body {
             flex-direction: column; 
+            overflow: visible !important; /* JAVÍTÁS: Engedjük kilógni a tartalmat */
         }
         .fx-chain-sidebar {
             width: 100%;
@@ -95,12 +96,26 @@ fxStyles.innerHTML = `
             border-bottom: 1px solid #333;
             min-height: 120px; 
             max-height: 180px; 
+            overflow: visible !important; /* JAVÍTÁS: Innét is kitörhet a menü */
         }
+        
+        /* ÚJ: Mobilspecifikus menü pozíció */
+        #plugin-picker {
+            bottom: auto; /* Mobilon ne felfelé nyíljon... */
+            top: 100%;    /* ...hanem lefelé (rá a plugin UI-ra)! */
+            margin-bottom: 0;
+            margin-top: 4px;
+            z-index: 9999; /* Itt már működni fog a magas z-index */
+            box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+        }
+
         .fx-plugin-area {
             align-items: flex-start; 
             min-height: 300px; 
         }
-        .plugin-nv73, .plugin-la2a {
+        
+        /* Hozzáadtam a listához a többi plugint is, hogy azok is méreteződjenek mobilon */
+        .plugin-nv73, .plugin-la2a, .plugin-tape, .plugin-maximizer, .plugin-brit, .plugin-djent {
             transform: scale(0.85); 
             transform-origin: top center;
             margin-bottom: 40px;
