@@ -67,9 +67,13 @@ fxStyles.innerHTML = `
     .add-fx-btn:hover { border-color: var(--accent); color: var(--accent); }
     
     #plugin-picker {
-        display: none; position: absolute; bottom: 100%; left: 0; width: 100%;
-        background: #000; border: 1px solid var(--accent-soft); margin-bottom: 4px;
-        box-sizing: border-box; z-index: 30;
+        display: none; position: absolute; 
+        top: 100%; /* Mindig lefelé nyílik! */
+        left: 0; width: 100%;
+        background: #000; border: 1px solid var(--accent-soft); 
+        margin-top: 4px; box-sizing: border-box; 
+        z-index: 9999; /* Minden felett marad */
+        box-shadow: 0 10px 40px rgba(0,0,0,0.9);
     }
     #plugin-picker.show { display: block; }
     .plugin-pick-btn {
@@ -88,7 +92,7 @@ fxStyles.innerHTML = `
     @media (max-width: 768px) {
         .fx-body {
             flex-direction: column; 
-            overflow: visible !important; /* JAVÍTÁS: Engedjük kilógni a tartalmat */
+            overflow: visible !important; 
         }
         .fx-chain-sidebar {
             width: 100%;
@@ -96,16 +100,16 @@ fxStyles.innerHTML = `
             border-bottom: 1px solid #333;
             min-height: 120px; 
             max-height: 180px; 
-            overflow: visible !important; /* JAVÍTÁS: Innét is kitörhet a menü */
+            overflow: visible !important; 
         }
         
         /* ÚJ: Mobilspecifikus menü pozíció */
         #plugin-picker {
-            bottom: auto; /* Mobilon ne felfelé nyíljon... */
-            top: 100%;    /* ...hanem lefelé (rá a plugin UI-ra)! */
+            bottom: auto; 
+            top: 100%;    
             margin-bottom: 0;
             margin-top: 4px;
-            z-index: 9999; /* Itt már működni fog a magas z-index */
+            z-index: 9999; 
             box-shadow: 0 10px 40px rgba(0,0,0,0.9);
         }
 
