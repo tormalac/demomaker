@@ -17,9 +17,12 @@ const enableAudioBtn = document.getElementById('enableAudioBtn');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const masterGain = audioCtx.createGain();
 const masterPanner = audioCtx.createStereoPanner();
+const masterAnalyser = audioCtx.createAnalyser();
+masterAnalyser.fftSize = 256;
 
 masterGain.connect(masterPanner);
-masterPanner.connect(audioCtx.destination);
+masterPanner.connect(masterAnalyser);
+masterAnalyser.connect(audioCtx.destination);
 masterGain.gain.value = 0.8; 
 
 let trackCounter = 0;
@@ -545,6 +548,12 @@ document.addEventListener('click', e => {
     // 4. MONITOR & EGYÉB (Csak a felső sávon)
     const monitorBtn = e.target.closest('.daw-btn.monitor');
     if (monitorBtn) { handleMonitorClick(monitorBtn); return; }
+
+    // Clip LED törlése kattintásra
+    if (e.target.classList.contains('clip-led')) {
+        e.target.classList.remove('clipping');
+        return;
+    }
     
     const otherBtn = e.target.closest('.daw-btn');
     if (otherBtn && !otherBtn.classList.contains('mix-mute') && !otherBtn.classList.contains('mix-solo')) {
@@ -1934,6 +1943,33 @@ function updateMeters() {
             inMeterBg.style.webkitClipPath = `inset(0 100% 0 0)`;
          }
     });
+    // --- ÚJ: MASTER METER LOGIKA ---
+    const masterBufferLength = masterAnalyser.frequencyBinCount;
+    const masterData = new Uint8Array(masterBufferLength);
+    masterAnalyser.getByteTimeDomainData(masterData);
+
+    let masterMax = 0;
+    for (let i = 0; i < masterBufferLength; i++) {
+        const vol = Math.abs(masterData[i] - 128); 
+        if (vol > masterMax) masterMax = vol;
+    }
+
+    let masterPercent = (masterMax / 128) * 100 * 1.2; 
+    
+    // Clipping ellenőrzés (ha túllépi a 100%-ot)
+    const clipLed = document.querySelector('.clip-led');
+    if (masterPercent > 99) {
+        masterPercent = 100;
+        if (clipLed) clipLed.classList.add('clipping'); // Bekapcsol a piros LED
+    }
+
+    const masterMeterBg = document.querySelector('.master-vu');
+    if (masterMeterBg) {
+        const insetAmount = 100 - masterPercent;
+        masterMeterBg.style.clipPath = `inset(0 ${insetAmount}% 0 0)`;
+        masterMeterBg.style.webkitClipPath = `inset(0 ${insetAmount}% 0 0)`;
+    }
+
     requestAnimationFrame(updateMeters);
 }
 
