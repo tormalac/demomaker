@@ -163,6 +163,44 @@ function drawWaveform(canvas, buffer, color = '#00ffd5') {
     }
 }
 
+// --- PATTERN VIZUÁLIS KIRAJZOLÁSA A SÁVON ---
+function drawPattern(canvas, clip, color) {
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    // Vékony háttér-vonalak, hogy lássuk, ez egy rácsos pattern (4 dobhanghoz)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=1; i<4; i++) {
+        ctx.moveTo(0, (height/4)*i);
+        ctx.lineTo(width, (height/4)*i);
+    }
+    ctx.stroke();
+
+    // Végigmegyünk a klip "kottáján", és kirajzoljuk a hangjegyeket
+    if (clip.patternData && clip.patternData.notes) {
+        clip.patternData.notes.forEach(noteEvent => {
+            const x = noteEvent.start * PX_PER_SECOND;
+            const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); // Min 3px széles
+            
+            let y = 0;
+            let h = height / 4;
+            
+            // "Mű" sávkiosztás a vizualizációhoz (0=OH, 1=CH, 2=SN, 3=BD)
+            if (noteEvent.note === 46) y = 0; 
+            else if (noteEvent.note === 42) y = height/4; 
+            else if (noteEvent.note === 38) y = (height/4)*2; 
+            else if (noteEvent.note === 36) y = (height/4)*3; 
+
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y + 2, w, h - 4);
+        });
+    }
+}
+
 // --- KLIP ÁTMÉRETEZÉS (TRIMMING) LOGIKA ---
 let isResizing = false;
 let resizeTarget = null;
@@ -487,6 +525,102 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// --- STEP SEQUENCER LOGIKA ÉS UI ÉPÍTÉS ---
+const seqOverlay = document.getElementById('seq-modal-overlay');
+const seqGrid = document.getElementById('seq-grid');
+const instruments = [
+    { id: 'oh', name: 'Open Hat', note: 46 },
+    { id: 'ch', name: 'Hi-Hat', note: 42 },
+    { id: 'sn', name: 'Snare', note: 38 },
+    { id: 'bd', name: 'Kick', note: 36 }
+];
+
+// --- DRUM EDITOR (PATTERN KLIP SZERKESZTŐ) ---
+function openDrumEditor(clip) {
+    const seqOverlay = document.getElementById('seq-modal-overlay');
+    const seqGrid = document.getElementById('seq-grid');
+    const title = document.getElementById('seq-title');
+    
+    title.textContent = clip.querySelector('.clip-name').textContent + ' - EDITOR';
+    
+    const instruments = [
+        { id: 'oh', name: 'Open Hat', note: 46 },
+        { id: 'ch', name: 'Hi-Hat', note: 42 },
+        { id: 'sn', name: 'Snare', note: 38 },
+        { id: 'bd', name: 'Kick', note: 36 }
+    ];
+
+    // 16 tizenhatod (1 ütem). Később a klip hosszához igazítjuk.
+    const stepsPerBar = 16; 
+    const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
+    const secPerBeat = 60 / bpm;
+    const secPerStep = secPerBeat / 4; // 1 tizenhatod hossza mp-ben (4/4 esetén)
+
+    seqGrid.innerHTML = '';
+
+    instruments.forEach(inst => {
+        const row = document.createElement('div');
+        row.className = 'seq-row';
+        
+        const label = document.createElement('div');
+        label.className = 'seq-inst-name';
+        label.textContent = inst.name;
+        row.appendChild(label);
+        
+        const stepsContainer = document.createElement('div');
+        stepsContainer.className = 'seq-steps';
+        
+        for(let i = 0; i < totalSteps; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'seq-step-btn';
+            
+            // Megnézzük, van-e hangjegy a klipben ezen az időponton
+            const noteTime = i * secPerStep;
+            const existingNoteIndex = clip.patternData.notes.findIndex(n => n.note === inst.note && Math.abs(n.start - noteTime) < 0.01);
+            
+            if (existingNoteIndex !== -1) {
+                btn.classList.add('active');
+            }
+            
+            // Szerkesztés (Kattintás) logikája
+            btn.addEventListener('click', () => {
+                const isActive = btn.classList.contains('active');
+                if (isActive) {
+                    // Törlés a memóriából
+                    btn.classList.remove('active');
+                    const idx = clip.patternData.notes.findIndex(n => n.note === inst.note && Math.abs(n.start - noteTime) < 0.01);
+                    if (idx !== -1) clip.patternData.notes.splice(idx, 1);
+                } else {
+                    // Hozzáadás a memóriához
+                    btn.classList.add('active');
+                    clip.patternData.notes.push({note: inst.note, start: noteTime, duration: 0.1, velocity: 100});
+                    
+                    // Hang lejátszása kattintáskor (Visszajelzés)
+                    if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
+                    window.analogDrums.output.connect(masterGain); 
+                    window.analogDrums.playNote(inst.note, audioCtx.currentTime);
+                }
+                
+                // AZONNAL FRISSÍTJÜK A CANVAS-T A SÁVON!
+                const color = clip.closest('.track-container').classList.contains('drum') ? '#3fa9f5' : '#b084f7';
+                const canvas = clip.querySelector('canvas');
+                // Segédvonalak újrarajzolása
+                drawPattern(canvas, clip, color);
+            });
+            stepsContainer.appendChild(btn);
+        }
+        row.appendChild(stepsContainer);
+        seqGrid.appendChild(row);
+    });
+
+    seqOverlay.style.display = 'flex';
+}
+
+// Bezárás gomb
+document.getElementById('close-seq-btn').addEventListener('click', () => {
+    seqOverlay.style.display = 'none';
+});
+
 // --- GOMBOK ÉS KATTINTÁSOK KEZELÉSE (Sávok és Keverő is) ---
 document.addEventListener('click', e => {
     
@@ -552,6 +686,57 @@ document.addEventListener('click', e => {
     // Clip LED törlése kattintásra
     if (e.target.classList.contains('clip-led')) {
         e.target.classList.remove('clipping');
+        return;
+    }
+
+    // 5. EDIT GOMB (Pattern klip létrehozása és Editor megnyitása)
+    const editBtn = e.target.closest('.daw-btn.edit');
+    if (editBtn) {
+        const trackContainer = editBtn.closest('.track-container');
+        
+        if (trackContainer.classList.contains('drum') || trackContainer.classList.contains('synth')) {
+            // Megnézzük, van-e már kijelölt klip ezen a sávon
+            const selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
+            
+            if (selectedClip) {
+                if (selectedClip.dataset.type === 'pattern') {
+                    openDrumEditor(selectedClip);
+                } else {
+                    alert("Ez egy Audio Klip! A MIDI Editor csak Pattern klipekhez használható.");
+                }
+            } else {
+                // NINCS KIJELÖLVE SEMMI: Hozunk létre egy új, 1 ütemes Pattern Klipet a Piros Vonalnál!
+                let startTime = currentPlayTime;
+                
+                // Rácshoz (Grid) illesztjük a kezdést, hogy pontosan ütemre kerüljön
+                const snapPx = getSnapPx();
+                if (snapPx > 0) {
+                    startTime = (Math.round((startTime * PX_PER_SECOND) / snapPx) * snapPx) / PX_PER_SECOND;
+                }
+
+                const clipsContainer = trackContainer.querySelector('.clips');
+                const newClip = addPatternClipToTrack(clipsContainer, "Pattern " + Math.floor(Math.random()*100), startTime, 1);
+                
+                // --- TEST ADATOK: Tegyünk bele egy Alap Dob Groove-ot, hogy lássuk a grafikát! ---
+                const secPerBeat = 60 / bpm; // Egy negyed hossza másodpercben
+                newClip.patternData.notes.push({note: 36, start: 0, duration: 0.1, velocity: 100}); // Kick (1. ütés)
+                newClip.patternData.notes.push({note: 38, start: secPerBeat, duration: 0.1, velocity: 100}); // Snare (2. ütés)
+                newClip.patternData.notes.push({note: 36, start: secPerBeat*2, duration: 0.1, velocity: 100}); // Kick (3. ütés)
+                newClip.patternData.notes.push({note: 38, start: secPerBeat*3, duration: 0.1, velocity: 100}); // Snare (4. ütés)
+
+                // Kirajzoljuk a Canvas-ra
+                const color = trackContainer.classList.contains('drum') ? '#3fa9f5' : '#b084f7';
+                drawPattern(newClip.querySelector('canvas'), newClip, color);
+
+                const selectBtn = document.querySelector('.select-btn');
+                if (selectBtn && selectBtn.classList.contains('active')) {
+                    document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+                    newClip.classList.add('selected-clip');
+                }
+            }
+        } else {
+            alert("A Pattern Editor egyelőre csak a DRUM és SYNTH sávokon működik!");
+        }
         return;
     }
     
@@ -923,7 +1108,6 @@ function performDuplicate(e) {
 
     selectedClips.forEach(selected => {
         const parent = selected.parentElement; 
-        const buffer = selected.audioBuffer;   
         const name = selected.querySelector('.clip-name').textContent; 
         
         const currentStart = parseFloat(selected.dataset.start);
@@ -932,8 +1116,28 @@ function performDuplicate(e) {
         
         const newStart = currentStart + currentDuration;
         
-        // Létrehozzuk a másolatot, és azonnal beletesszük a tömbünkbe
-        const newClip = addClipToTrack(parent, buffer, name, newStart, currentTrim, currentDuration);
+        let newClip;
+
+        // --- ÚJ LOGIKA: Megnézzük, milyen típusú a klip ---
+        if (selected.dataset.type === 'pattern') {
+            
+            // 1. Létrehozzuk az új üres Pattern klipet a timeline-on
+            newClip = addPatternClipToTrack(parent, name, newStart, selected.patternData.lengthInBars);
+            
+            // 2. DEEP COPY: Teljesen független másolatot készítünk a "kottáról" (JSON trükk)
+            newClip.patternData.notes = JSON.parse(JSON.stringify(selected.patternData.notes));
+            
+            // 3. Kirajzoljuk rá a másolt kis bogyókat
+            const trackContainer = parent.closest('.track-container');
+            const color = (trackContainer && trackContainer.classList.contains('synth')) ? '#b084f7' : '#3fa9f5';
+            drawPattern(newClip.querySelector('canvas'), newClip, color);
+
+        } else {
+            // RÉGI LOGIKA: Ha ez egy Audio Klip, másoljuk az audioBuffer-t
+            const buffer = selected.audioBuffer;
+            newClip = addClipToTrack(parent, buffer, name, newStart, currentTrim, currentDuration);
+        }
+
         if (newClip) newlyCreatedClips.push(newClip);
     });
 
@@ -1627,6 +1831,64 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
     return clip;
 }
 
+function addPatternClipToTrack(container, name, startTime, lengthInBars = 1) {
+    const clip = document.createElement('div');
+    clip.className = 'audio-clip pattern-clip'; 
+
+    const parentTrack = container.closest('.track-container');
+    let clipColor = '#3fa9f5'; // Alapértelmezett (Drum Kék)
+    if (parentTrack && parentTrack.classList.contains('synth')) clipColor = '#b084f7';
+
+    // Kiszámoljuk, milyen hosszú a klip pixelben (ütemek alapján)
+    const secondsPerBeat = 60 / bpm;
+    const duration = lengthInBars * timeSig[0] * secondsPerBeat;
+    const width = duration * PX_PER_SECOND;
+
+    clip.style.width = `${width}px`;
+    clip.style.left = `${startTime * PX_PER_SECOND}px`;
+    
+    // Adatok tárolása (Ez az "AGYA" a klipnek)
+    clip.dataset.type = 'pattern';         // JELZÜK A RENDSZERNEK, HOGY EZ NEM AUDIÓ!
+    clip.dataset.start = startTime;        
+    clip.dataset.duration = duration;  
+    clip.dataset.trimOffset = 0;           
+    
+    // Itt tároljuk a kottát (Note adatok)! Később az Editor ide fog írni.
+    clip.patternData = {
+        lengthInBars: lengthInBars,
+        notes: [] 
+    };
+
+    // 1. Név címke
+    const label = document.createElement('div');
+    label.className = 'clip-name';
+    label.textContent = name;
+    clip.appendChild(label);
+
+    // 2. Waveform Canvas (Rajzvászon)
+    const canvas = document.createElement('canvas');
+    canvas.className = 'clip-waveform';
+    canvas.width = Math.min(width, 16384);       
+    canvas.style.width = `${width}px`; 
+    clip.appendChild(canvas);
+
+    // 3. Resize fülek (Később hasznos lesz a loopoláshoz)
+    const leftHandle = document.createElement('div');
+    leftHandle.className = 'resize-handle left';
+    leftHandle.onmousedown = (e) => initResize(e, leftHandle, clip);
+    
+    const rightHandle = document.createElement('div');
+    rightHandle.className = 'resize-handle right';
+    rightHandle.onmousedown = (e) => initResize(e, rightHandle, clip);
+    
+    clip.appendChild(leftHandle);
+    clip.appendChild(rightHandle);
+
+    container.appendChild(clip);
+
+    return clip;
+}
+
 async function startRecording(startTimeOffset) {
     activeRecorders = [];
     const allTracks = document.querySelectorAll('.track-container');
@@ -1761,43 +2023,66 @@ function scheduleClips(offsetTime) {
     const allClips = document.querySelectorAll('.audio-clip');
     
     allClips.forEach(clipDiv => {
-        const buffer = clipDiv.audioBuffer;
         const clipStartTimeline = parseFloat(clipDiv.dataset.start); 
         const clipDuration = parseFloat(clipDiv.dataset.duration);
         const trimOffset = parseFloat(clipDiv.dataset.trimOffset || 0); 
         const clipEndTimeline = clipStartTimeline + clipDuration;
 
         if (offsetTime < clipEndTimeline) {
-            const source = audioCtx.createBufferSource();
-            source.buffer = buffer;
             const parentTrack = clipDiv.closest('.track-container');
-            
-            if (parentTrack) {
-                if (parentTrack.trackPannerNode) {
-                     source.connect(parentTrack.trackPannerNode);
+            // Célkimenet: A sáv pannerje, vagy a Master
+            const trackOutput = (parentTrack && parentTrack.trackPannerNode) ? parentTrack.trackPannerNode : masterGain;
+
+            // --- 1. AUDIO KLIP LEJÁTSZÁSA ---
+            if (clipDiv.dataset.type !== 'pattern') {
+                const buffer = clipDiv.audioBuffer;
+                if (!buffer) return;
+                
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(trackOutput);
+                
+                let whenToStart = 0; 
+                let offsetInFile = 0; 
+
+                if (offsetTime > clipStartTimeline) {
+                    whenToStart = 0; 
+                    offsetInFile = (offsetTime - clipStartTimeline) + trimOffset;
+                } else {
+                    whenToStart = clipStartTimeline - offsetTime;
+                    offsetInFile = trimOffset;
                 }
-            } else {
-                source.connect(masterGain); 
-            }
-            
-            let whenToStart = 0; 
-            let offsetInFile = 0; 
 
-            if (offsetTime > clipStartTimeline) {
-                whenToStart = 0; 
-                offsetInFile = (offsetTime - clipStartTimeline) + trimOffset;
-            } else {
-                whenToStart = clipStartTimeline - offsetTime;
-                offsetInFile = trimOffset;
-            }
+                let playDuration = clipDuration;
+                if (offsetTime > clipStartTimeline) {
+                    playDuration = clipEndTimeline - offsetTime;
+                }
 
-            let playDuration = clipDuration;
-            if (offsetTime > clipStartTimeline) {
-                playDuration = clipEndTimeline - offsetTime;
-            }
+                source.start(audioCtx.currentTime + whenToStart, offsetInFile, playDuration);
+                audioSources.push(source);
+            } 
+            // --- 2. PATTERN (MIDI) KLIP LEJÁTSZÁSA ---
+            else {
+                if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
+                // A dobgépet is a sáv saját effektezett/pannerelt kimenetére kötjük
+                window.analogDrums.output.connect(trackOutput);
 
-            source.start(audioCtx.currentTime + whenToStart, offsetInFile, playDuration);
-            audioSources.push(source);
+                if (clipDiv.patternData && clipDiv.patternData.notes) {
+                    clipDiv.patternData.notes.forEach(note => {
+                        // Kiszámoljuk, hol van a hang a timeline-on abszolút értékben
+                        const noteAbsoluteTime = clipStartTimeline + note.start - trimOffset;
+                        
+                        // Csak azokat a hangokat játsszuk le, amik a Playhead (offsetTime) UTÁN jönnek,
+                        // és még bőven a klip vége ELŐTT vannak.
+                        if (noteAbsoluteTime >= offsetTime && noteAbsoluteTime < clipEndTimeline) {
+                            const whenToStart = noteAbsoluteTime - offsetTime;
+                            
+                            // A Web Audio API pontosan a jövőbe időzíti a hangokat!
+                            window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity);
+                        }
+                    });
+                }
+            }
         }
     });
 }
