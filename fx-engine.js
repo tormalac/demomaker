@@ -167,6 +167,67 @@ fxStyles.innerHTML = `
     .toggle-switch[data-val="compress"]::before { top: 16px; } /* Lent */
     .toggle-switch[data-val="limit"]::before { top: 0px; }   /* Fent */
     .switch-labels { display: flex; flex-direction: column; align-items: center; font-size: 9px; font-weight: bold; color: #222; font-family: Arial, sans-serif; gap: 26px;}
+
+    /* --- TAPE SATURATOR UI --- */
+    .plugin-tape {
+        background: #2a221d; border: 2px solid #111; border-radius: 4px;
+        width: 100%; max-width: 400px; padding: 20px;
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.6);
+        background-image: repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(0,0,0,0.05) 10px, rgba(0,0,0,0.05) 20px);
+    }
+    .tape-header { text-align: center; color: #dcb37b; font-weight: bold; font-size: 1.2rem; letter-spacing: 3px; margin-bottom: 20px; font-family: serif;}
+    .tape-panel { display: flex; justify-content: space-around; align-items: center; }
+    .knob.tape-gold { background: radial-gradient(circle, #e0bc84, #8b6b3d); border: 2px solid #3d2a15; }
+    .plugin-tape .knob-label { color: #dcb37b; }
+    .plugin-tape .knob-value { color: #fff; }
+
+    /* --- L-MAX MAXIMIZER UI --- */
+    .plugin-maximizer {
+        background: #19222b; border: 2px solid #000; border-radius: 2px;
+        width: 100%; max-width: 350px; padding: 20px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .max-header { text-align: center; color: #5bc0eb; font-weight: 800; font-size: 1.5rem; letter-spacing: -1px; margin-bottom: 20px; font-style: italic;}
+    .max-panel { display: flex; justify-content: space-around; align-items: center; }
+    /* Ebben csúszkák lesznek potik helyett! */
+    .max-slider-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px;}
+    .max-slider { -webkit-appearance: none; width: 120px; height: 6px; background: #000; border-radius: 3px; transform: rotate(-90deg); margin: 60px 0;}
+    .max-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 12px; background: #5bc0eb; cursor: pointer; border-radius: 2px;}
+    .max-label { color: #aaa; font-size: 10px; font-weight: bold; text-transform: uppercase;}
+    .max-val { color: #5bc0eb; font-family: var(--font-mono); font-size: 11px;}
+
+    /* --- AMP SIM UI --- */
+    .amp-panel { display: flex; justify-content: space-around; align-items: center; gap: 10px; width: 100%;}
+    .amp-header { text-align: center; font-weight: 900; font-size: 1.6rem; letter-spacing: 2px; margin-bottom: 25px; text-transform: uppercase;}
+    .amp-header span { display: block; font-size: 0.6rem; letter-spacing: 5px; opacity: 0.7; margin-top: 4px; font-weight: normal;}
+    
+    /* Brit 800 (Marshall Vibe) */
+    .plugin-brit {
+        background: #111; border: 4px solid #bba057; border-radius: 6px;
+        width: 100%; max-width: 550px; padding: 25px;
+        box-shadow: inset 0 0 50px rgba(0,0,0,0.9), 0 10px 30px rgba(0,0,0,0.7);
+        background-image: repeating-linear-gradient(45deg, #151515 25%, transparent 25%, transparent 75%, #151515 75%, #151515), repeating-linear-gradient(45deg, #151515 25%, #111 25%, #111 75%, #151515 75%, #151515);
+        background-position: 0 0, 2px 2px; background-size: 4px 4px; /* Tolex textúra */
+    }
+    .brit-header { color: #bba057; font-family: Impact, sans-serif; }
+    .plugin-brit .knob-label { color: #bba057; }
+    .plugin-brit .knob-value { color: #fff; }
+    .knob.amp-gold { background: radial-gradient(circle at 30% 30%, #e8c973, #a68428); border: 2px solid #5a4511; width: 42px; height: 42px;}
+    .knob.amp-gold::after { background: #111; width: 3px; height: 12px;}
+
+    /* Djent 51 (Modern Metal Vibe) */
+    .plugin-djent {
+        background: #1a1a1a; border: 2px solid #444; border-radius: 4px; border-top: 8px solid #900;
+        width: 100%; max-width: 550px; padding: 25px;
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .djent-header { color: #ccc; font-family: 'Arial Black', sans-serif; }
+    .djent-header span { color: #900; font-weight: bold;}
+    .plugin-djent .knob-label { color: #aaa; }
+    .plugin-djent .knob-value { color: #f00; font-weight: bold;}
+    .knob.amp-black { background: radial-gradient(circle at 50% 10%, #444, #000); border: 1px solid #555; width: 42px; height: 42px; box-shadow: 0 5px 10px rgba(0,0,0,1);}
+    .knob.amp-black::after { background: #f00; width: 2px; height: 14px;}
+    
 `;
 document.head.appendChild(fxStyles);
 
@@ -252,6 +313,240 @@ class LA2ACompressor {
     }
 }
 
+// --- 3. Brit 800 (Vintage British Stack - Marshall JCM800 style) ---
+class Brit800Amp {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // Bemeneti vágás (ne legyen túl iszapos a mélye)
+        this.preEQ = ctx.createBiquadFilter();
+        this.preEQ.type = 'highpass';
+        this.preEQ.frequency.value = 120;
+
+        // Csöves aszimmetrikus torzító
+        this.driveNode = ctx.createWaveShaper();
+        this.driveNode.oversample = '4x';
+
+        // Klasszikus Tone Stack (Passzív EQ szimuláció)
+        this.bass = ctx.createBiquadFilter(); this.bass.type = 'lowshelf'; this.bass.frequency.value = 120;
+        this.mid = ctx.createBiquadFilter(); this.mid.type = 'peaking'; this.mid.frequency.value = 700; this.mid.Q.value = 0.7;
+        this.treble = ctx.createBiquadFilter(); this.treble.type = 'highshelf'; this.treble.frequency.value = 3500;
+        this.presence = ctx.createBiquadFilter(); this.presence.type = 'peaking'; this.presence.frequency.value = 5000; this.presence.Q.value = 1.5;
+
+        // 4x12 Cabinet Simulator (Hangszóró szimuláció) - Enélkül darázs hangja van!
+        this.cabSimHp = ctx.createBiquadFilter(); this.cabSimHp.type = 'highpass'; this.cabSimHp.frequency.value = 80; this.cabSimHp.Q.value = 1.0;
+        this.cabSimLp = ctx.createBiquadFilter(); this.cabSimLp.type = 'lowpass'; this.cabSimLp.frequency.value = 5500; this.cabSimLp.Q.value = 0.5;
+
+        this.masterVolume = ctx.createGain();
+
+        // Jelút felépítése
+        this.input.connect(this.preEQ);
+        this.preEQ.connect(this.driveNode);
+        this.driveNode.connect(this.bass);
+        this.bass.connect(this.mid);
+        this.mid.connect(this.treble);
+        this.treble.connect(this.presence);
+        this.presence.connect(this.cabSimHp);
+        this.cabSimHp.connect(this.cabSimLp);
+        this.cabSimLp.connect(this.masterVolume);
+        this.masterVolume.connect(this.output);
+
+        this.setDrive(50);
+        this.setVolume(50);
+    }
+
+    makeTubeCurve(amount) {
+        let k = amount * 1.5; // Gain skálázása
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Enyhén aszimmetrikus (páros harmonikusok) a Marshallos "karcért"
+            if (x < 0) curve[i] = -1 + Math.exp(x * (1 + k/10));
+            else curve[i] = Math.tanh(x * (1 + k/5));
+        }
+        return curve;
+    }
+
+    setDrive(val) { this.driveNode.curve = this.makeTubeCurve(val); }
+    setBass(val) { this.bass.gain.value = (val - 50) / 3; } // -16dB to +16dB
+    setMid(val) { this.mid.gain.value = (val - 50) / 4; }
+    setTreble(val) { this.treble.gain.value = (val - 50) / 3; }
+    setPresence(val) { this.presence.gain.value = (val - 50) / 4; }
+    setVolume(val) { this.masterVolume.gain.value = val / 100; }
+}
+
+// --- 4. Djent 51 (Modern High Gain - Mesa/5150 style) ---
+class Djent51Amp {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // TIGHT PRE-BOOST (Tube Screamer szimuláció a torzító előtt)
+        // Levágja a sarat a mélyekről és kiemeli a pengetést
+        this.tsBoost = ctx.createBiquadFilter();
+        this.tsBoost.type = 'bandpass';
+        this.tsBoost.frequency.value = 750;
+        this.tsBoost.Q.value = 0.5; 
+
+        // Brutális, szimmetrikus torzítás
+        this.driveNode = ctx.createWaveShaper();
+        this.driveNode.oversample = '4x';
+
+        // Tone Stack (Mélyebb basszusok, élesebb magasak)
+        this.bass = ctx.createBiquadFilter(); this.bass.type = 'lowshelf'; this.bass.frequency.value = 90;
+        this.mid = ctx.createBiquadFilter(); this.mid.type = 'peaking'; this.mid.frequency.value = 500; this.mid.Q.value = 1.0;
+        this.treble = ctx.createBiquadFilter(); this.treble.type = 'highshelf'; this.treble.frequency.value = 4000;
+        this.depth = ctx.createBiquadFilter(); this.depth.type = 'peaking'; this.depth.frequency.value = 100; this.depth.Q.value = 2.0;
+
+        // Modern V30 4x12 Cabinet Simulator (Kicsit sötétebb, fókuszáltabb)
+        this.cabSimHp = ctx.createBiquadFilter(); this.cabSimHp.type = 'highpass'; this.cabSimHp.frequency.value = 90; this.cabSimHp.Q.value = 1.2;
+        this.cabSimLp = ctx.createBiquadFilter(); this.cabSimLp.type = 'lowpass'; this.cabSimLp.frequency.value = 6500; this.cabSimLp.Q.value = 0.7;
+        
+        // Scoop filter a klasszikus "V" EQ-hoz
+        this.cabScoop = ctx.createBiquadFilter(); this.cabScoop.type = 'peaking'; this.cabScoop.frequency.value = 400; this.cabScoop.Q.value = 1.0; this.cabScoop.gain.value = -4;
+
+        this.masterVolume = ctx.createGain();
+
+        // Gate a zaj ellen (nagyon egyszerű noise gate)
+        this.gate = ctx.createDynamicsCompressor();
+        this.gate.threshold.value = -50; 
+        this.gate.ratio.value = 20;
+
+        // Jelút
+        this.input.connect(this.gate);
+        this.gate.connect(this.tsBoost);
+        this.tsBoost.connect(this.driveNode);
+        this.driveNode.connect(this.bass);
+        this.bass.connect(this.mid);
+        this.mid.connect(this.treble);
+        this.treble.connect(this.depth);
+        this.depth.connect(this.cabSimHp);
+        this.cabSimHp.connect(this.cabScoop);
+        this.cabScoop.connect(this.cabSimLp);
+        this.cabSimLp.connect(this.masterVolume);
+        this.masterVolume.connect(this.output);
+
+        this.setDrive(70);
+        this.setVolume(50);
+    }
+
+    makeHighGainCurve(amount) {
+        let k = amount * 4; // Extrém gain
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Kemény szimmetrikus vágás (Hard clipping)
+            curve[i] = Math.tanh(x * (1 + k/2)); 
+        }
+        return curve;
+    }
+
+    setDrive(val) { this.driveNode.curve = this.makeHighGainCurve(val); }
+    setBass(val) { this.bass.gain.value = (val - 50) / 2.5; }
+    setMid(val) { this.mid.gain.value = (val - 50) / 2; }
+    setTreble(val) { this.treble.gain.value = (val - 50) / 2.5; }
+    setDepth(val) { this.depth.gain.value = val / 10; } // 0-10dB mély rezonancia (Mesa style)
+    setVolume(val) { this.masterVolume.gain.value = val / 100; }
+}
+
+// --- 5. Vintage Tape Saturator ---
+class TapeSaturator {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+        
+        // Szalag szaturáció (WaveShaper)
+        this.driveNode = ctx.createWaveShaper();
+        this.driveNode.oversample = '4x';
+        
+        // Szalagos magnó EQ karakterisztika (mély emelés, magas vágás)
+        this.headBump = ctx.createBiquadFilter();
+        this.headBump.type = 'lowshelf';
+        this.headBump.frequency.value = 80;
+        this.headBump.gain.value = 1.5; 
+        
+        this.highRollOff = ctx.createBiquadFilter();
+        this.highRollOff.type = 'lowpass';
+        this.highRollOff.frequency.value = 15000;
+        
+        this.input.connect(this.headBump);
+        this.headBump.connect(this.driveNode);
+        this.driveNode.connect(this.highRollOff);
+        this.highRollOff.connect(this.output);
+        
+        this.setDrive(0);
+    }
+    
+    makeTapeCurve(amount) {
+        let k = amount * 2; // 0-100 skálázása
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Tanh (hiperbolikus tangens) görbe a természetes analóg telítéshez
+            curve[i] = Math.tanh(x * (1 + k / 10)); 
+        }
+        return curve;
+    }
+    
+    setDrive(val) { this.driveNode.curve = this.makeTapeCurve(val); }
+    setIPS(val) {
+        // IPS (szalagsebesség): 15 ips jobban vágja a magasat és melegebb, 30 ips tisztább
+        this.highRollOff.frequency.value = val === 15 ? 12000 : 18000;
+        this.headBump.frequency.value = val === 15 ? 60 : 100;
+    }
+}
+
+// --- 6. L-MAX Brickwall Maximizer (L2 Stílus) ---
+class BrickwallMaximizer {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // 1. A bemenetet felerősítjük a küszöbérték (Threshold) alapján
+        this.inputGain = ctx.createGain();
+
+        // 2. Extrém gyors és agresszív kompresszor a fal (brickwall) képzésére
+        this.limiter = ctx.createDynamicsCompressor();
+        this.limiter.threshold.value = -0.1; // 0 dB körüli betonfal
+        this.limiter.knee.value = 0;         // Hard knee
+        this.limiter.ratio.value = 20;       // Max limitálás
+        this.limiter.attack.value = 0.001;   // Azonnali
+        this.limiter.release.value = 0.05;   // Gyors visszaállás
+
+        // 3. A kimenetet pedig lehúzzuk a Ceiling (plafon) alapján
+        this.ceilingGain = ctx.createGain();
+
+        this.input.connect(this.inputGain);
+        this.inputGain.connect(this.limiter);
+        this.limiter.connect(this.ceilingGain);
+        this.ceilingGain.connect(this.output);
+    }
+
+    setThreshold(val) {
+        // Ha Threshold -10dB, akkor 10dB-t ERŐSÍTÜNK a limiter ELŐTT (mint a Waves L2-ben)
+        let boostDb = Math.abs(val); 
+        this.inputGain.gain.value = Math.pow(10, boostDb / 20);
+    }
+
+    setCeiling(val) {
+        // A végső kimenet lehalkítása (pl. -0.1 dB True Peak védelem)
+        this.ceilingGain.gain.value = Math.pow(10, val / 20);
+    }
+    
+    setRelease(val) {
+        // 0.01-től 1000 ms-ig
+        this.limiter.release.value = val / 1000;
+    }
+}
+
 
 // ==========================================================
 // --- UI GENERÁTOROK ---
@@ -320,6 +615,92 @@ function createLA2AUI(pluginInstance) {
     return wrapper;
 }
 
+// --- BRIT 800 UI ---
+function createBritUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-brit';
+    wrapper.innerHTML = `
+        <div class="amp-header brit-header">BRITISH 800<span>LEAD SERIES</span></div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob amp-gold" data-param="drive" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">PRE-AMP</div></div>
+            <div class="knob-container"><div class="knob amp-gold" data-param="bass" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">BASS</div></div>
+            <div class="knob-container"><div class="knob amp-gold" data-param="mid" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">MIDDLE</div></div>
+            <div class="knob-container"><div class="knob amp-gold" data-param="treble" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">TREBLE</div></div>
+            <div class="knob-container"><div class="knob amp-gold" data-param="presence" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">PRESENCE</div></div>
+            <div class="knob-container"><div class="knob amp-gold" data-param="volume" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">MASTER</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
+// --- DJENT 51 UI ---
+function createDjentUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-djent';
+    wrapper.innerHTML = `
+        <div class="amp-header djent-header">DJENT 51<span>HIGH GAIN TERROR</span></div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob amp-black" data-param="drive" data-min="0" data-max="100" data-val="70"></div><div class="knob-value">70</div><div class="knob-label">GAIN</div></div>
+            <div class="knob-container"><div class="knob amp-black" data-param="bass" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">LOW</div></div>
+            <div class="knob-container"><div class="knob amp-black" data-param="mid" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">MID</div></div>
+            <div class="knob-container"><div class="knob amp-black" data-param="treble" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">HIGH</div></div>
+            <div class="knob-container"><div class="knob amp-black" data-param="depth" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">DEPTH</div></div>
+            <div class="knob-container"><div class="knob amp-black" data-param="volume" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">VOLUME</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
+// --- TAPE UI ---
+function createTapeUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-tape';
+    wrapper.innerHTML = `
+        <div class="tape-header">STUDIO TAPE MACHINE</div>
+        <div class="tape-panel">
+            <div class="knob-container"><div class="knob tape-gold" data-param="drive" data-min="0" data-max="100" data-val="0"></div><div class="knob-value">0</div><div class="knob-label">SATURATION</div></div>
+            <div class="knob-container"><div class="knob tape-gold" data-param="ips" data-min="15" data-max="30" data-val="30" data-step="true" data-steps="15,30"></div><div class="knob-value">30 IPS</div><div class="knob-label">SPEED</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'tape');
+    return wrapper;
+}
+
+// --- MAXIMIZER UI ---
+function createMaximizerUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-maximizer';
+    wrapper.innerHTML = `
+        <div class="max-header">L-MAX LIMITER</div>
+        <div class="max-panel">
+            <div class="max-slider-wrap">
+                <div class="max-val" id="max-thresh-val">0.0 dB</div>
+                <input type="range" class="max-slider" min="-30" max="0" step="0.1" value="0" id="max-thresh">
+                <div class="max-label">THRESHOLD</div>
+            </div>
+            <div class="max-slider-wrap">
+                <div class="max-val" id="max-ceil-val">0.0 dB</div>
+                <input type="range" class="max-slider" min="-30" max="0" step="0.1" value="0" id="max-ceil">
+                <div class="max-label">CEILING</div>
+            </div>
+        </div>
+    `;
+    
+    // A Maximizer csúszkáinak eseménykezelése
+    wrapper.querySelector('#max-thresh').addEventListener('input', (e) => {
+        wrapper.querySelector('#max-thresh-val').textContent = parseFloat(e.target.value).toFixed(1) + ' dB';
+        pluginInstance.setThreshold(e.target.value);
+    });
+    wrapper.querySelector('#max-ceil').addEventListener('input', (e) => {
+        wrapper.querySelector('#max-ceil-val').textContent = parseFloat(e.target.value).toFixed(1) + ' dB';
+        pluginInstance.setCeiling(e.target.value);
+    });
+
+    return wrapper;
+}
+
 // --- KÖZÖS POTMÉTER LOGIKA ---
 function setupKnobs(wrapper, pluginInstance, type) {
     const knobs = wrapper.querySelectorAll('.knob');
@@ -375,6 +756,17 @@ function setupKnobs(wrapper, pluginInstance, type) {
         } else if (type === 'la2a') {
             if (param === 'gain') pluginInstance.setGain(newVal);
             else if (param === 'peakReduction') pluginInstance.setPeakReduction(newVal);
+        } else if (type === 'tape') {
+            if (param === 'drive') pluginInstance.setDrive(newVal);
+            else if (param === 'ips') pluginInstance.setIPS(newVal);
+        } else if (type === 'amp') {
+            if (param === 'drive') pluginInstance.setDrive(newVal);
+            else if (param === 'bass') pluginInstance.setBass(newVal);
+            else if (param === 'mid') pluginInstance.setMid(newVal);
+            else if (param === 'treble') pluginInstance.setTreble(newVal);
+            else if (param === 'presence') pluginInstance.setPresence?.(newVal);
+            else if (param === 'depth') pluginInstance.setDepth?.(newVal);
+            else if (param === 'volume') pluginInstance.setVolume(newVal);
         }
     };
 
@@ -408,9 +800,12 @@ function updateKnobVisuals(knob, val, type) {
         else valDisplay.textContent = (val > 0 ? '+' : '') + Math.round(val) + ' dB';
     } else if (type === 'la2a') {
         valDisplay.textContent = Math.round(val);
+    } else if (type === 'tape') {
+        // --- ÚJ: Tape Saturator vizuális frissítése ---
+        if (param === 'ips') valDisplay.textContent = Math.round(val) + ' IPS';
+        else valDisplay.textContent = Math.round(val);
     }
 }
-
 
 // ==========================================================
 // --- FX LÁNC ÉS ABLAK KEZELŐ ---
@@ -430,7 +825,11 @@ const modalHTML = `
                         <button class="add-fx-btn" id="add-fx-btn">+ Add Plugin</button>
                         <div id="plugin-picker">
                             <button class="plugin-pick-btn" data-plugin="nv73">N-73 Preamp & EQ</button>
-                            <button class="plugin-pick-btn" data-plugin="la2a">LA-2A Leveler</button>
+                            <button class="plugin-pick-btn" data-plugin="la2a">L-2A Leveler</button>
+                            <button class="plugin-pick-btn" data-plugin="brit">Brit 800 Amp</button>
+                            <button class="plugin-pick-btn" data-plugin="djent">Djent 51 Amp</button>
+                            <button class="plugin-pick-btn" data-plugin="tape">Vintage Tape Sat</button>
+                            <button class="plugin-pick-btn" data-plugin="maximizer">L-MAX Brickwall</button>
                         </div>
                     </div>
                 </div>
@@ -450,39 +849,47 @@ const pluginPicker = document.getElementById('plugin-picker');
 let currentTrackId = null;
 
 document.addEventListener('click', (e) => {
-    // 1. Felugró ablak megnyitása a track gombjára
-    if (e.target.classList.contains('track-inserts')) {
-        const track = e.target.closest('.track-container');
+    // 1. Felugró ablak megnyitása a track VAGY a master gombjára
+    if (e.target.classList.contains('track-inserts') || e.target.classList.contains('mix-inserts')) {
+        const isMaster = e.target.classList.contains('mix-inserts');
+        const track = isMaster ? e.target.closest('.master-channel') : e.target.closest('.track-container');
         currentTrackId = track.dataset.trackId;
         
-        document.getElementById('fx-track-title').textContent = track.querySelector('.track-name').textContent + ' - Inserts';
+        const titleText = isMaster ? 'MASTER BUS' : track.querySelector('.track-name').textContent;
+        document.getElementById('fx-track-title').textContent = titleText + ' - Inserts';
         fxOverlay.style.display = 'flex';
         pluginPicker.classList.remove('show');
         
+        // Ha még nem inicializáltuk az FX láncot ezen a sávon
         if (!track.fxInputNode) {
             track.fxInputNode = audioCtx.createGain();
             track.fxOutputNode = audioCtx.createGain();
             track.fxInputNode.connect(track.fxOutputNode);
-    
-            track.trackPannerNode.disconnect(); 
-    
-            track.trackPannerNode.connect(track.fxInputNode);
-            track.fxOutputNode.connect(track.trackGainNode);
             track.fxChain = []; 
+            
+            if (isMaster) {
+                // MASTER SÁV ROUTING: Panner -> [FX] -> Analyser
+                if (typeof masterPanner !== 'undefined') {
+                    masterPanner.disconnect();
+                    masterPanner.connect(track.fxInputNode);
+                    track.fxOutputNode.connect(masterAnalyser); // masterAnalyser-be megy vissza!
+                }
+            } else {
+                // NORMÁL SÁV ROUTING
+                track.trackPannerNode.disconnect(); 
+                track.trackPannerNode.connect(track.fxInputNode);
+                track.fxOutputNode.connect(track.trackGainNode);
+            }
         }
         renderFxList(track);
 
-        // --- ÚJ RÉSZ: Jobb oldali panel frissítése sávváltáskor ---
         if (track.fxChain.length > 0) {
-            // Ha van effekt az új sávon, nyissuk meg automatikusan a legelsőt
             openPluginUI(track, 0);
-            // És tegyük "aktívvá" a bal oldali listában is az elsőt
             setTimeout(() => {
                 const firstSlot = document.querySelector('.fx-slot');
                 if (firstSlot) firstSlot.classList.add('active');
             }, 10);
         } else {
-            // Ha üres az új sáv, takarítsuk ki az előző plugin képét
             fxArea.innerHTML = '<div style="color:#555; font-family:var(--font-mono); font-size: 0.9rem;">Select or Add a plugin...</div>';
         }
     }
@@ -503,17 +910,23 @@ document.addEventListener('click', (e) => {
     // 4. Plugin kiválasztása a listából
     if (e.target.classList.contains('plugin-pick-btn')) {
         const pluginType = e.target.dataset.plugin;
-        const track = document.querySelector(`.track-container[data-track-id="${currentTrackId}"]`);
+        const track = currentTrackId === 'master' 
+            ? document.querySelector('.master-channel') 
+            : document.querySelector(`.track-container[data-track-id="${currentTrackId}"]`);
         
         let plugin, ui, name;
         if (pluginType === 'nv73') {
-            plugin = new NV73Preamp(audioCtx);
-            ui = createNV73UI(plugin);
-            name = 'N-73 Preamp';
+            plugin = new NV73Preamp(audioCtx); ui = createNV73UI(plugin); name = 'N-73 Preamp';
         } else if (pluginType === 'la2a') {
-            plugin = new LA2ACompressor(audioCtx);
-            ui = createLA2AUI(plugin);
-            name = 'LA-2A Leveler';
+            plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'LA-2A Leveler';
+        } else if (pluginType === 'tape') {
+            plugin = new TapeSaturator(audioCtx); ui = createTapeUI(plugin); name = 'Vintage Tape';
+        } else if (pluginType === 'brit') {
+            plugin = new Brit800Amp(audioCtx); ui = createBritUI(plugin); name = 'Brit 800';
+        } else if (pluginType === 'djent') {
+            plugin = new Djent51Amp(audioCtx); ui = createDjentUI(plugin); name = 'Djent 51';
+        } else if (pluginType === 'maximizer') {
+            plugin = new BrickwallMaximizer(audioCtx); ui = createMaximizerUI(plugin); name = 'L-MAX Limiter';
         }
         
         track.fxChain.push({ name, instance: plugin, ui });
@@ -618,7 +1031,7 @@ function renderFxList(track) {
     });
 
     // --- ZÖLDÍTÉS LOGIKA ---
-    const insertBtn = track.querySelector('.track-inserts');
+    const insertBtn = track.classList.contains('master-channel') ? track.querySelector('.mix-inserts') : track.querySelector('.track-inserts');
     if (insertBtn) {
         if (track.fxChain.length > 0) {
             insertBtn.style.color = '#00ffd5';
