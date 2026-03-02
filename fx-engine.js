@@ -463,7 +463,9 @@ document.addEventListener('click', (e) => {
             track.fxInputNode = audioCtx.createGain();
             track.fxOutputNode = audioCtx.createGain();
             track.fxInputNode.connect(track.fxOutputNode);
-            try { track.trackPannerNode.disconnect(track.trackGainNode); } catch(err){}
+    
+            track.trackPannerNode.disconnect(); 
+    
             track.trackPannerNode.connect(track.fxInputNode);
             track.fxOutputNode.connect(track.trackGainNode);
             track.fxChain = []; 
@@ -638,7 +640,6 @@ function openPluginUI(track, index) {
 function rebuildFxRouting(track) {
     track.fxInputNode.disconnect();
     track.fxChain.forEach(fx => {
-        fx.instance.input.disconnect();
         fx.instance.output.disconnect();
     });
 
