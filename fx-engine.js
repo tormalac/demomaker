@@ -36,13 +36,16 @@ fxStyles.innerHTML = `
     .close-fx { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1.5rem; }
     
     .fx-body { 
-        display: flex; flex: 1; flex-direction: row; overflow: hidden; 
+        display: flex; flex: 1; flex-direction: row; 
+        overflow: visible;
     }
     
     /* FX Lánc (Bal oldal) */
     .fx-chain-sidebar { 
         width: 200px; background: #0a0a0a; border-right: 1px solid #333; 
         padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; 
+        position: relative; 
+        z-index: 100;       
     }
     #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 100px; }
     .fx-slot {
@@ -54,27 +57,39 @@ fxStyles.innerHTML = `
     .fx-slot.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,213,0.05); }
     
     /* Plugin Választó Menü */
+    /* Plugin Választó Menü */
     .add-fx-wrap { 
         position: relative; 
-        max-width: 200px; 
+        width: 100%; 
         box-sizing: border-box; 
+        margin-bottom: 10px; /* Egy kis hely, mielőtt jönnek a hozzáadott pluginok */
+        z-index: 200; /* Magasabbra emeljük, hogy a legördülő menü minden felett legyen */
     }
     .add-fx-btn {
-        max-width: 100%; background: transparent; border: 1px solid #555; color: #888;
+        width: 100%; background: transparent; border: 1px solid #555; color: #888;
         padding: 8px; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem;
         box-sizing: border-box; 
     }
-    .add-fx-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .add-fx-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,213,0.05); }
     
     #plugin-picker {
-        display: none; position: absolute; 
-        top: 100%; /* Mindig lefelé nyílik! */
-        left: 0; width: 100%;
+        display: none; 
+        position: absolute; /* VISSZAKAPTA A LEBEGÉST! */
+        top: 100%; left: 0; width: 100%;
         background: #000; border: 1px solid var(--accent-soft); 
         margin-top: 4px; box-sizing: border-box; 
-        z-index: 9999; /* Minden felett marad */
-        box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+        z-index: 9999; 
+        box-shadow: 0 15px 40px rgba(0,0,0,0.95);
+        border-radius: 4px;
+        overflow: hidden;
     }
+    #plugin-picker.show { display: block; }
+    .plugin-pick-btn {
+        width: 100%; background: transparent; border: none; color: #fff;
+        padding: 10px; cursor: pointer; font-family: var(--font-mono); font-size: 0.8rem; text-align: left;
+        box-sizing: border-box;
+    }
+    .plugin-pick-btn:hover { background: rgba(0,255,213,0.1); color: var(--accent); }
     #plugin-picker.show { display: block; }
     .plugin-pick-btn {
         width: 100%; background: transparent; border: none; color: #fff;
@@ -101,16 +116,6 @@ fxStyles.innerHTML = `
             min-height: 120px; 
             max-height: 180px; 
             overflow: visible !important; 
-        }
-        
-        /* ÚJ: Mobilspecifikus menü pozíció */
-        #plugin-picker {
-            bottom: auto; 
-            top: 100%;    
-            margin-bottom: 0;
-            margin-top: 4px;
-            z-index: 9999; 
-            box-shadow: 0 10px 40px rgba(0,0,0,0.9);
         }
 
         .fx-plugin-area {
@@ -252,6 +257,121 @@ document.head.appendChild(fxStyles);
 // ==========================================================
 // --- DSP OSZTÁLYOK ---
 // ==========================================================
+
+// ==========================================================
+// --- SYNTH ENGINE: VIRTUAL ANALOG DRUM MACHINE ---
+// ==========================================================
+
+class AnalogDrumMachine {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.output = ctx.createGain();
+        this.output.gain.value = 1.0;
+        
+        // Előre legeneráljuk a fehérzajt a memóriába (a pergőhöz és a cinhez)
+        this.noiseBuffer = this.createNoiseBuffer();
+    }
+
+    createNoiseBuffer() {
+        const bufferSize = this.ctx.sampleRate * 2; // 2 másodperc zaj
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1; // Fehérzaj generálás
+        }
+        return buffer;
+    }
+
+    // Hangjegy (MIDI Note) érkezésekor eldöntjük, melyik dobot ütjük meg
+    playNote(midiNote, time, velocity = 100) {
+        const vel = velocity / 127; // 0.0 - 1.0 dinamika
+        
+        // Klasszikus General MIDI dobkiosztás:
+        if (midiNote === 36) this.playKick(time, vel);        // C1 - Kick
+        else if (midiNote === 38) this.playSnare(time, vel);  // D1 - Snare
+        else if (midiNote === 42) this.playHiHat(time, vel, 0.05); // F#1 - Closed Hat
+        else if (midiNote === 46) this.playHiHat(time, vel, 0.3);  // A#1 - Open Hat
+    }
+
+    playKick(time, velocity) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.output);
+
+        osc.type = 'sine';
+        
+        // Pitch boríték (gyors esés)
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+        
+        // Hangerő boríték
+        gain.gain.setValueAtTime(velocity, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+
+        osc.start(time);
+        osc.stop(time + 0.5);
+    }
+
+    playSnare(time, velocity) {
+        // 1. A test (Body)
+        const osc = this.ctx.createOscillator();
+        const oscGain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.connect(oscGain);
+        oscGain.connect(this.output);
+        
+        osc.frequency.setValueAtTime(200, time);
+        oscGain.gain.setValueAtTime(velocity * 0.5, time);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+        osc.start(time);
+        osc.stop(time + 0.2);
+
+        // 2. A zörgés (Noise)
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = this.noiseBuffer;
+        const noiseFilter = this.ctx.createBiquadFilter();
+        const noiseGain = this.ctx.createGain();
+        
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.value = 1000;
+        
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.output);
+
+        noiseGain.gain.setValueAtTime(velocity, time);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+        noise.start(time);
+        noise.stop(time + 0.3);
+    }
+
+    playHiHat(time, velocity, decay) {
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = this.noiseBuffer;
+        
+        const bandpass = this.ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 10000;
+        
+        const highpass = this.ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 7000;
+
+        const gain = this.ctx.createGain();
+
+        noise.connect(bandpass);
+        bandpass.connect(highpass);
+        highpass.connect(gain);
+        gain.connect(this.output);
+
+        gain.gain.setValueAtTime(velocity * 0.8, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+
+        noise.start(time);
+        noise.stop(time + decay + 0.1);
+    }
+}
 
 // --- 1. NV-73 Preamp (Drive + EQ) ---
 class NV73Preamp {
@@ -838,7 +958,7 @@ const modalHTML = `
             </div>
             <div class="fx-body">
                 <div class="fx-chain-sidebar">
-                    <div id="fx-list"></div>
+                    
                     <div class="add-fx-wrap">
                         <button class="add-fx-btn" id="add-fx-btn">+ Add Plugin</button>
                         <div id="plugin-picker">
@@ -850,6 +970,9 @@ const modalHTML = `
                             <button class="plugin-pick-btn" data-plugin="maximizer">L-MAX Brickwall</button>
                         </div>
                     </div>
+
+                    <div id="fx-list"></div>
+
                 </div>
                 <div class="fx-plugin-area" id="fx-plugin-area">
                     <div style="color:#555; font-family:monospace;">Select or Add a plugin...</div>
@@ -1085,3 +1208,71 @@ function rebuildFxRouting(track) {
         currentNode.connect(track.fxOutputNode);
     }
 }
+
+// ==========================================================
+// --- STEP SEQUENCER UI (DOBGÉP) ---
+// ==========================================================
+const seqStyles = document.createElement('style');
+seqStyles.innerHTML = `
+    #seq-modal-overlay {
+        position: fixed; top: 0; bottom: 0; left: 0; right: 0;
+        background: rgba(0,0,0,0.85); z-index: 3000;
+        display: none; align-items: center; justify-content: center;
+        backdrop-filter: blur(5px);
+    }
+    #seq-modal {
+        background: #111; border: 1px solid #3fa9f5; border-radius: 4px;
+        width: 95%; max-width: 900px; padding: 0;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.8); display: flex; flex-direction: column;
+    }
+    .seq-header {
+        background: #0a0a0a; padding: 15px 20px; border-bottom: 1px solid #222;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .seq-header h2 { margin: 0; font-size: 1.2rem; color: #3fa9f5; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 2px;}
+    .close-seq { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1.5rem; transition: 0.2s;}
+    .close-seq:hover { color: #fff; }
+    
+    .seq-body { padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #151515;}
+    
+    .seq-row { display: flex; align-items: center; gap: 10px; }
+    .seq-inst-name { 
+        width: 80px; color: #aaa; font-family: var(--font-mono); font-size: 0.8rem; 
+        text-transform: uppercase; text-align: right; padding-right: 10px; font-weight: bold;
+    }
+    
+    .seq-steps { display: flex; flex: 1; gap: 4px; }
+    
+    .seq-step-btn {
+        flex: 1; height: 40px; background: #222; border: 1px solid #111; border-radius: 2px;
+        cursor: pointer; transition: background 0.1s; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+    }
+    .seq-step-btn:hover { background: #333; }
+    
+    /* Ütem-kiemelés (minden 4. lépés egy picit más színű, hogy lásd a negyedeket) */
+    .seq-step-btn:nth-child(4n+1) { background: #2a2a2a; }
+    
+    /* Aktív lépés (neon kék) */
+    .seq-step-btn.active { 
+        background: #3fa9f5; border-color: #fff;
+        box-shadow: 0 0 10px rgba(63, 169, 245, 0.6), inset 0 0 5px rgba(255,255,255,0.5);
+    }
+    
+    /* A futófény (Playhead a dobgépen belül) */
+    .seq-step-btn.playing { border-bottom: 3px solid #fff; }
+`;
+document.head.appendChild(seqStyles);
+
+const seqModalHTML = `
+    <div id="seq-modal-overlay">
+        <div id="seq-modal">
+            <div class="seq-header">
+                <h2 id="seq-title">DRUM SEQUENCER</h2>
+                <button class="close-seq" id="close-seq-btn">×</button>
+            </div>
+            <div class="seq-body" id="seq-grid">
+                </div>
+        </div>
+    </div>
+`;
+document.body.insertAdjacentHTML('beforeend', seqModalHTML);
