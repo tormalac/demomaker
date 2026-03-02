@@ -70,7 +70,7 @@ fxStyles.innerHTML = `
     #plugin-picker {
         display: none; position: absolute; bottom: 100%; left: 0; width: 100%;
         background: #000; border: 1px solid var(--accent-soft); margin-bottom: 4px;
-        box-sizing: border-box; /* <-- EZ PEDIG A LENYÍLÓ MENÜ KERETÉT FOGJA MEG */
+        box-sizing: border-box; z-index: 30;
     }
     #plugin-picker.show { display: block; }
     .plugin-pick-btn {
