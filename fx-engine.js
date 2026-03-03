@@ -265,9 +265,6 @@ document.head.appendChild(fxStyles);
 class AnalogDrumMachine {
     constructor(ctx) {
         this.ctx = ctx;
-        this.output = ctx.createGain();
-        this.output.gain.value = 1.0;
-        
         // Előre legeneráljuk a fehérzajt a memóriába (a pergőhöz és a cinhez)
         this.noiseBuffer = this.createNoiseBuffer();
     }
@@ -282,30 +279,27 @@ class AnalogDrumMachine {
         return buffer;
     }
 
-    // Hangjegy (MIDI Note) érkezésekor eldöntjük, melyik dobot ütjük meg
-    playNote(midiNote, time, velocity = 100) {
+    // Hangjegy érkezésekor átadjuk a cél Node-ot (dest) is!
+    playNote(midiNote, time, velocity = 100, destinationNode) {
         const vel = velocity / 127; // 0.0 - 1.0 dinamika
+        const dest = destinationNode || this.ctx.destination; // Biztonsági alapértelmezett
         
         // Klasszikus General MIDI dobkiosztás:
-        if (midiNote === 36) this.playKick(time, vel);        // C1 - Kick
-        else if (midiNote === 38) this.playSnare(time, vel);  // D1 - Snare
-        else if (midiNote === 42) this.playHiHat(time, vel, 0.05); // F#1 - Closed Hat
-        else if (midiNote === 46) this.playHiHat(time, vel, 0.3);  // A#1 - Open Hat
+        if (midiNote === 36) this.playKick(time, vel, dest);        // C1 - Kick
+        else if (midiNote === 38) this.playSnare(time, vel, dest);  // D1 - Snare
+        else if (midiNote === 42) this.playHiHat(time, vel, 0.05, dest); // F#1 - Closed Hat
+        else if (midiNote === 46) this.playHiHat(time, vel, 0.3, dest);  // A#1 - Open Hat
     }
 
-    playKick(time, velocity) {
+    playKick(time, velocity, dest) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain);
-        gain.connect(this.output);
+        gain.connect(dest); // Csatlakozás a sávhoz!
 
         osc.type = 'sine';
-        
-        // Pitch boríték (gyors esés)
         osc.frequency.setValueAtTime(150, time);
         osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
-        
-        // Hangerő boríték
         gain.gain.setValueAtTime(velocity, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
 
@@ -313,13 +307,12 @@ class AnalogDrumMachine {
         osc.stop(time + 0.5);
     }
 
-    playSnare(time, velocity) {
-        // 1. A test (Body)
+    playSnare(time, velocity, dest) {
         const osc = this.ctx.createOscillator();
         const oscGain = this.ctx.createGain();
         osc.type = 'triangle';
         osc.connect(oscGain);
-        oscGain.connect(this.output);
+        oscGain.connect(dest); // Csatlakozás a sávhoz!
         
         osc.frequency.setValueAtTime(200, time);
         oscGain.gain.setValueAtTime(velocity * 0.5, time);
@@ -327,7 +320,6 @@ class AnalogDrumMachine {
         osc.start(time);
         osc.stop(time + 0.2);
 
-        // 2. A zörgés (Noise)
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
         const noiseFilter = this.ctx.createBiquadFilter();
@@ -338,7 +330,7 @@ class AnalogDrumMachine {
         
         noise.connect(noiseFilter);
         noiseFilter.connect(noiseGain);
-        noiseGain.connect(this.output);
+        noiseGain.connect(dest); // Csatlakozás a sávhoz!
 
         noiseGain.gain.setValueAtTime(velocity, time);
         noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
@@ -346,7 +338,7 @@ class AnalogDrumMachine {
         noise.stop(time + 0.3);
     }
 
-    playHiHat(time, velocity, decay) {
+    playHiHat(time, velocity, decay, dest) {
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
         
@@ -363,7 +355,7 @@ class AnalogDrumMachine {
         noise.connect(bandpass);
         bandpass.connect(highpass);
         highpass.connect(gain);
-        gain.connect(this.output);
+        gain.connect(dest); // Csatlakozás a sávhoz!
 
         gain.gain.setValueAtTime(velocity * 0.8, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
