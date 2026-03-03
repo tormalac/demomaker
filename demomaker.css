@@ -1351,3 +1351,128 @@ h1, h2, h3 {
 .mixer-channel.vocal { border-top: 3px solid #ff7ac8; } .mixer-channel.vocal .mix-type { color: #ff7ac8; }
 .mixer-channel.sample { border-top: 3px solid #ff8c00; } .mixer-channel.sample .mix-type { color: #ff8c00; }
 .mixer-channel.master { border-top: 3px solid #ff4c4c; }
+
+/* ==========================================================
+   --- STEP SEQUENCER (DOBGÉP) STÍLUSOK ---
+   ========================================================== */
+.seq-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.seq-inst-name {
+    width: 80px;
+    color: #aaa;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    text-align: right;
+    padding-right: 10px;
+    flex-shrink: 0;
+}
+
+.seq-steps {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.seq-step-btn {
+    flex: 1;
+    height: 34px;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.seq-step-btn:hover {
+    background: #333;
+}
+
+/* Dobgép aktív (leütött) állapota */
+.seq-step-btn.active {
+    background: #3fa9f5;
+    border-color: #fff;
+    box-shadow: 0 0 8px rgba(63, 169, 245, 0.6);
+}
+
+/* ==========================================================
+   --- PIANO ROLL STÍLUSOK ---
+   ========================================================== */
+#seq-grid {
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-radius: 4px;
+    overflow-y: auto;
+    max-height: 500px;
+}
+
+.pr-row {
+    display: flex;
+    height: 22px;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+/* Fekete billentyűk sorának sötétebb háttere a rácson */
+.pr-row.black-row {
+    background: #141414;
+}
+
+.pr-key {
+    width: 60px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+    border-right: 2px solid #000;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    box-sizing: border-box;
+    user-select: none;
+}
+
+.pr-key.white {
+    background: #ddd;
+    color: #111;
+}
+
+.pr-key.black {
+    background: #111;
+    color: #aaa;
+}
+
+.pr-grid {
+    display: flex;
+    flex: 1;
+}
+
+/* Maga a cella, ahova a hangjegyet rajzolod */
+.pr-cell {
+    flex: 1;
+    border-right: 1px solid #1a1a1a;
+    cursor: crosshair; /* Kereszt kurzor jelzi, hogy rajzolni lehet */
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.pr-cell:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Aktív (leütött) hangjegy a Piano Roll-ban */
+.pr-cell.active {
+    /* A JS adja át a --piano-roll-note-color változót, hogy alkalmazkodjon a sáv színéhez (pl. lila vagy sárga) */
+    background: var(--piano-roll-note-color, #b084f7); 
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Rácsozás vizuális segédlete (Minden 4. cella kapjon egy erősebb vonalat a negyedek jelzésére) */
+.seq-step-btn:nth-child(4n),
+.pr-cell:nth-child(4n) {
+    border-right: 1px solid #444;
+}
