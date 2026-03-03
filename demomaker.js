@@ -716,7 +716,7 @@ function openPianoRoll(clip) {
         const keyLabel = document.createElement('div');
         keyLabel.className = `pr-key ${key.type}`;
         // Csak a C hangokra írjuk ki a nevet (C3, C4)
-        keyLabel.textContent = key.name.includes('#') ? '' : key.name;
+        keyLabel.textContent = key.name;
         row.appendChild(keyLabel);
         
         // Jobb oldali folytonos rács
