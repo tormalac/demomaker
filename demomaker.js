@@ -170,58 +170,43 @@ function drawPattern(canvas, clip, color) {
     const height = canvas.height;
     ctx.clearRect(0, 0, width, height);
 
-    // Megnézzük, hogy ez egy Synth/Bass sáv-e
-    const isSynth = clip.closest('.track-container').classList.contains('synth') || clip.closest('.track-container').classList.contains('bass');
+    // Most már 9 hangszerünk van, így 9 sorra osztjuk a canvas-t
+    const numInst = 9;
+    const rowHeight = height / numInst;
 
-    if (isSynth) {
-        // --- SYNTH RAJZOLÁS (24 billentyű: C3 - B4) ---
-        const minNote = 48; // C3
-        const maxNote = 71; // B4
-        const numNotes = maxNote - minNote + 1; // 24 sor
-        const rowHeight = height / numNotes;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=1; i<numInst; i++) {
+        ctx.moveTo(0, rowHeight * i);
+        ctx.lineTo(width, rowHeight * i);
+    }
+    ctx.stroke();
 
-        if (clip.patternData && clip.patternData.notes) {
-            clip.patternData.notes.forEach(noteEvent => {
-                const x = noteEvent.start * PX_PER_SECOND;
-                const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); 
-                
-                // Kiszámoljuk, melyik sorba esik (Fent a magasak, lent a mélyek)
-                const row = maxNote - noteEvent.note; 
-                const y = row * rowHeight;
-                
-                ctx.fillStyle = color;
-                // Itt nem hagyunk rést a sorok között, egybefüggő téglákat rajzolunk
-                ctx.fillRect(x, y, w, rowHeight);
-            });
-        }
-    } else {
-        // --- DOBGÉP RAJZOLÁS (Eredeti 9 soros nézet) ---
-        const numInst = 9;
-        const rowHeight = height / numInst;
+    // Hozzárendeljük a MIDI kódokat a sorokhoz (fentről lefelé)
+    const noteRowMap = {
+        49: 0, // Crash
+        51: 1, // Ride
+        48: 2, // Hi Tom
+        45: 3, // Mid Tom
+        41: 4, // Low Tom
+        46: 5, // Open Hat
+        42: 6, // Closed Hat
+        38: 7, // Snare
+        36: 8  // Kick
+    };
 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for(let i=1; i<numInst; i++) {
-            ctx.moveTo(0, rowHeight * i);
-            ctx.lineTo(width, rowHeight * i);
-        }
-        ctx.stroke();
-
-        const noteRowMap = { 49:0, 51:1, 48:2, 45:3, 41:4, 46:5, 42:6, 38:7, 36:8 };
-
-        if (clip.patternData && clip.patternData.notes) {
-            clip.patternData.notes.forEach(noteEvent => {
-                const x = noteEvent.start * PX_PER_SECOND;
-                const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); 
-                
-                const row = noteRowMap[noteEvent.note] !== undefined ? noteRowMap[noteEvent.note] : 8;
-                const y = row * rowHeight;
-                
-                ctx.fillStyle = color;
-                ctx.fillRect(x, y + 1, w, rowHeight - 2);
-            });
-        }
+    if (clip.patternData && clip.patternData.notes) {
+        clip.patternData.notes.forEach(noteEvent => {
+            const x = noteEvent.start * PX_PER_SECOND;
+            const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); 
+            
+            const row = noteRowMap[noteEvent.note] !== undefined ? noteRowMap[noteEvent.note] : 8;
+            const y = row * rowHeight;
+            
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y + 1, w, rowHeight - 2);
+        });
     }
 }
 
@@ -553,6 +538,99 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ==========================================================
+// --- STEP SEQUENCER & PIANO ROLL UI (HTML & CSS) ---
+// ==========================================================
+const seqStyles = document.createElement('style');
+seqStyles.innerHTML = `
+    #seq-modal-overlay {
+        position: fixed; top: 0; bottom: 0; left: 0; right: 0;
+        background: rgba(0,0,0,0.85); z-index: 3000;
+        display: none; align-items: center; justify-content: center;
+        backdrop-filter: blur(5px);
+    }
+    #seq-modal {
+        background: #111; border: 1px solid #3fa9f5; border-radius: 4px;
+        width: 95%; max-width: 900px; padding: 0;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.8); display: flex; flex-direction: column;
+    }
+    .seq-header {
+        background: #0a0a0a; padding: 15px 20px; border-bottom: 1px solid #222;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .seq-header h2 { margin: 0; font-size: 1.2rem; color: #3fa9f5; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 2px;}
+    .close-seq { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1.5rem; transition: 0.2s;}
+    .close-seq:hover { color: #fff; }
+    
+    .seq-body { padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #151515;}
+    
+    .seq-row { display: flex; align-items: center; gap: 10px; }
+    .seq-inst-name { 
+        width: 80px; color: #aaa; font-family: var(--font-mono); font-size: 0.8rem; 
+        text-transform: uppercase; text-align: right; padding-right: 10px; font-weight: bold;
+    }
+    
+    .seq-steps { display: flex; flex: 1; gap: 4px; }
+    
+    /* DOBGÉP GOMBOK */
+    .seq-step-btn {
+        flex: 1; height: 40px; background: #222; border: 1px solid #111; border-radius: 2px;
+        cursor: pointer; transition: background 0.1s; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+    }
+    .seq-step-btn:hover { background: #333; }
+    .seq-step-btn:nth-child(4n+1) { background: #2a2a2a; }
+    .seq-step-btn.active { 
+        background: #3fa9f5; border-color: #fff;
+        box-shadow: 0 0 10px rgba(63, 169, 245, 0.6), inset 0 0 5px rgba(255,255,255,0.5);
+    }
+
+    /* --- PIANO ROLL STÍLUSOK (CUBASE / FL STUDIO STYLE) --- */
+    .pr-row { display: flex; align-items: stretch; height: 22px; }
+    .pr-key { 
+        width: 60px; flex-shrink: 0; box-sizing: border-box; 
+        display: flex; align-items: center; justify-content: flex-end; padding-right: 6px;
+        font-size: 10px; font-family: sans-serif; font-weight: bold;
+        border-right: 1px solid #111; z-index: 10;
+    }
+    .pr-key.white { background: #e0e0e0; color: #111; border-bottom: 1px solid #999; }
+    .pr-key.black { background: #1a1a1a; color: #fff; border-bottom: 1px solid #000; }
+    
+    .pr-grid { display: flex; flex: 1; background: #1e1e1e; }
+    .pr-row.black-row .pr-grid { background: #141414; }
+    
+    .pr-cell { 
+        flex: 1; cursor: pointer; box-sizing: border-box;
+        border-right: 1px solid #2a2a2a; border-bottom: 1px solid #2a2a2a;
+        transition: background 0.05s;
+    }
+    .pr-cell:nth-child(4n) { border-right: 1px solid #555; }
+    .pr-cell:hover { background: rgba(255, 255, 255, 0.05); }
+    
+    .pr-cell.active { 
+        background: var(--piano-roll-note-color, #b084f7); 
+        border: 1px solid rgba(0,0,0,0.3);
+        border-radius: 2px;
+        box-shadow: inset 0 0 4px rgba(0,0,0,0.4);
+    }
+`;
+document.head.appendChild(seqStyles);
+
+const seqModalHTML = `
+    <div id="seq-modal-overlay">
+        <div id="seq-modal">
+            <div class="seq-header">
+                <h2 id="seq-title">EDITOR</h2>
+                <button class="close-seq" id="close-seq-btn">×</button>
+            </div>
+            <div class="seq-body" id="seq-grid"></div>
+        </div>
+    </div>
+`;
+// Csak akkor fűzzük be, ha még nincs a DOM-ban
+if(!document.getElementById('seq-modal-overlay')) {
+    document.body.insertAdjacentHTML('beforeend', seqModalHTML);
+}
+
 // --- STEP SEQUENCER LOGIKA ÉS UI ÉPÍTÉS ---
 const seqOverlay = document.getElementById('seq-modal-overlay');
 const seqGrid = document.getElementById('seq-grid');
@@ -566,13 +644,9 @@ const instruments = [
 // --- DRUM EDITOR (PATTERN KLIP SZERKESZTŐ) ---
 function openDrumEditor(clip) {
     const seqOverlay = document.getElementById('seq-modal-overlay');
-    const seqModal = document.getElementById('seq-modal');
     const seqGrid = document.getElementById('seq-grid');
     const title = document.getElementById('seq-title');
     
-    // Kék szín a dobgépnek
-    seqModal.style.borderColor = '#3fa9f5';
-    title.style.color = '#3fa9f5';
     title.textContent = clip.querySelector('.clip-name').textContent + ' - EDITOR';
     
     const instruments = [
@@ -646,115 +720,6 @@ function openDrumEditor(clip) {
                 drawPattern(canvas, clip, color);
             });
             stepsContainer.appendChild(btn);
-        }
-        row.appendChild(stepsContainer);
-        seqGrid.appendChild(row);
-    });
-
-    seqOverlay.style.display = 'flex';
-}
-
-// --- PIANO ROLL EDITOR (CUBASE / FL STUDIO STYLE) ---
-function openPianoRoll(clip) {
-    const seqOverlay = document.getElementById('seq-modal-overlay');
-    const seqModal = document.getElementById('seq-modal'); // <-- ÚJ: Ezt is lekérjük a kerethez
-    const seqGrid = document.getElementById('seq-grid');
-    const title = document.getElementById('seq-title');
-    
-    // --- 1. DINAMIKUS SZÍN ÖRÖKLÉSE A SÁVTÓL ---
-    const trackContainer = clip.closest('.track-container');
-    let trackColor = '#b084f7'; // Alapértelmezett Szinti Lila
-
-    if (trackContainer) {
-        if (trackContainer.classList.contains('bass')) {
-            trackColor = '#ffd93d'; // Bass Sárga
-        } else if (trackContainer.classList.contains('synth')) {
-            trackColor = '#b084f7'; // Synth Lila
-        }
-    }
-
-    // --- 2. A FELUGRÓ ABLAK SZÍNEZÉSE ---
-    seqModal.style.borderColor = trackColor;
-    title.style.color = trackColor;
-    title.textContent = clip.querySelector('.clip-name').textContent + ' - PIANO ROLL';
-    
-    // Legenerálunk 2 oktávnyi billentyűt (B4-től lefelé C3-ig)
-    const notes = [];
-    const noteNames = ['B','A#','A','G#','G','F#','F','E','D#','D','C#','C'];
-    const isBlack = [false, true, false, true, false, true, false, false, true, false, true, false];
-    
-    // Generálunk 4-es és 3-as oktávot
-    for(let oct = 4; oct >= 3; oct--) {
-        for(let i = 0; i < 12; i++) {
-            notes.push({
-                name: noteNames[i] + oct,
-                note: (oct + 1) * 12 + (11 - i), // C3 = 48, C4 = 60
-                type: isBlack[i] ? 'black' : 'white'
-            });
-        }
-    }
-
-    const stepsPerBar = 16; 
-    const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
-    const secPerBeat = 60 / bpm;
-    const secPerStep = secPerBeat / 4; 
-
-    // A dobgrid gap-jét levesszük, hogy összeérjenek a cellák
-    seqGrid.style.gap = '0';
-    seqGrid.style.padding = '0';
-    seqGrid.innerHTML = '';
-
-    // Beállítjuk a színváltozót a rács konténerén a téglákhoz
-    seqGrid.style.setProperty('--piano-roll-note-color', trackColor);
-
-    notes.forEach(key => {
-        const row = document.createElement('div');
-        row.className = 'pr-row';
-        if (key.type === 'black') row.classList.add('black-row'); // Sötétebb háttér a rácson
-        
-        // Bal oldali zongorabillentyű
-        const keyLabel = document.createElement('div');
-        keyLabel.className = `pr-key ${key.type}`;
-        // Csak a C hangokra írjuk ki a nevet (C3, C4)
-        keyLabel.textContent = key.name;
-        row.appendChild(keyLabel);
-        
-        // Jobb oldali folytonos rács
-        const stepsContainer = document.createElement('div');
-        stepsContainer.className = 'pr-grid';
-        
-        for(let i = 0; i < totalSteps; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'pr-cell';
-            
-            const noteTime = i * secPerStep;
-            const existingNoteIndex = clip.patternData.notes.findIndex(n => n.note === key.note && Math.abs(n.start - noteTime) < 0.01);
-            
-            if (existingNoteIndex !== -1) {
-                cell.classList.add('active');
-            }
-            
-            // Itt már nem kell explicit szín a rajzoláshoz, mert a CSS a sáv színét használja!
-            cell.addEventListener('mousedown', () => {
-                if (cell.classList.contains('active')) {
-                    cell.classList.remove('active');
-                    const idx = clip.patternData.notes.findIndex(n => n.note === key.note && Math.abs(n.start - noteTime) < 0.01);
-                    if (idx !== -1) clip.patternData.notes.splice(idx, 1);
-                } else {
-                    cell.classList.add('active');
-                    clip.patternData.notes.push({note: key.note, start: noteTime, duration: secPerStep * 0.95, velocity: 100});
-                    
-                    // Hang lejátszása visszajelzésként
-                    if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
-                    const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
-                    window.analogSynth.playNote(key.note, audioCtx.currentTime, 0.2, 100, trackOutput);
-                }
-                
-                // Grafika frissítése a klipen az Arrangerben (dinamikus színnel)
-                const canvas = clip.querySelector('canvas');
-                drawPattern(canvas, clip, trackColor);
-            });
-            stepsContainer.appendChild(cell);
         }
         row.appendChild(stepsContainer);
         seqGrid.appendChild(row);
@@ -841,19 +806,15 @@ document.addEventListener('click', e => {
     if (editBtn) {
         const trackContainer = editBtn.closest('.track-container');
         
-        if (trackContainer.classList.contains('drum') || trackContainer.classList.contains('synth')) {
+        if (trackContainer.classList.contains('drum') || trackContainer.classList.contains('synth') || trackContainer.classList.contains('bass')) {
             // Megnézzük, van-e már kijelölt klip ezen a sávon
             const selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
             
             if (selectedClip) {
                 if (selectedClip.dataset.type === 'pattern') {
-                    // HA SZINTI, AKKOR PIANO ROLL
-                    if (trackContainer.classList.contains('synth') || trackContainer.classList.contains('bass')) {
-                        openPianoRoll(selectedClip);
-                    } else {
-                        // AMÚGY DOBGÉP
-                        openDrumEditor(selectedClip);
-                    }
+                    openDrumEditor(selectedClip);
+                } else {
+                    alert("Ez egy Audio Klip! A MIDI Editor csak Pattern klipekhez használható.");
                 }
             } else {
                 // NINCS KIJELÖLVE SEMMI: Hozunk létre egy új, 1 ütemes Pattern Klipet a Piros Vonalnál!
@@ -2449,8 +2410,10 @@ function scheduleClips(offsetTime) {
                 source.start(audioCtx.currentTime + whenToStart, offsetInFile, playDuration);
                 audioSources.push(source);
             } 
-           // --- 2. PATTERN (MIDI) KLIP LEJÁTSZÁSA ---
+            // --- 2. PATTERN (MIDI) KLIP LEJÁTSZÁSA ---
             else {
+                if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
+
                 if (clipDiv.patternData && clipDiv.patternData.notes) {
                     clipDiv.patternData.notes.forEach(note => {
                         const noteAbsoluteTime = clipStartTimeline + note.start - trimOffset;
@@ -2458,17 +2421,9 @@ function scheduleClips(offsetTime) {
                         if (noteAbsoluteTime >= offsetTime && noteAbsoluteTime < clipEndTimeline) {
                             const whenToStart = noteAbsoluteTime - offsetTime;
                             
-                            // MEGNÉZZÜK, MILYEN SÁVON VAGYUNK!
-                            if (parentTrack.classList.contains('synth')) {
-                                // SZINTETIZÁTOR LEJÁTSZÁSA
-                                if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
-                                // note.duration a hossza (alapból 0.25 sec, azaz egy tizenhatod)
-                                window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput);
-                            } else {
-                                // DOBGÉP LEJÁTSZÁSA
-                                if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
-                                window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput);
-                            }
+                            // Itt adjuk át a 'trackOutput'-ot paraméterként! 
+                            // Ez a sáv Panner-e, amiből továbbmegy az FX-be, Mute/Solo-ba és Gain-be.
+                            window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput);
                         }
                     });
                 }
