@@ -265,103 +265,130 @@ document.head.appendChild(fxStyles);
 class AnalogDrumMachine {
     constructor(ctx) {
         this.ctx = ctx;
-        // Előre legeneráljuk a fehérzajt a memóriába (a pergőhöz és a cinhez)
         this.noiseBuffer = this.createNoiseBuffer();
     }
 
     createNoiseBuffer() {
-        const bufferSize = this.ctx.sampleRate * 2; // 2 másodperc zaj
+        const bufferSize = this.ctx.sampleRate * 2; 
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const output = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            output[i] = Math.random() * 2 - 1; // Fehérzaj generálás
-        }
+        for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1; 
         return buffer;
     }
 
-    // Hangjegy érkezésekor átadjuk a cél Node-ot (dest) is!
     playNote(midiNote, time, velocity = 100, destinationNode) {
-        const vel = velocity / 127; // 0.0 - 1.0 dinamika
-        const dest = destinationNode || this.ctx.destination; // Biztonsági alapértelmezett
+        const vel = velocity / 127; 
+        const dest = destinationNode || this.ctx.destination; 
         
-        // Klasszikus General MIDI dobkiosztás:
-        if (midiNote === 36) this.playKick(time, vel, dest);        // C1 - Kick
-        else if (midiNote === 38) this.playSnare(time, vel, dest);  // D1 - Snare
-        else if (midiNote === 42) this.playHiHat(time, vel, 0.05, dest); // F#1 - Closed Hat
-        else if (midiNote === 46) this.playHiHat(time, vel, 0.3, dest);  // A#1 - Open Hat
+        // Bővített General MIDI dobkiosztás:
+        if (midiNote === 36) this.playKick(time, vel, dest);
+        else if (midiNote === 38) this.playSnare(time, vel, dest);
+        else if (midiNote === 42) this.playHiHat(time, vel, 0.05, dest); // Zárt Hi-Hat
+        else if (midiNote === 46) this.playHiHat(time, vel, 0.3, dest);  // Nyitott Hi-Hat
+        else if (midiNote === 48) this.playTom(time, vel, 200, dest);    // High Tom
+        else if (midiNote === 45) this.playTom(time, vel, 130, dest);    // Mid Tom
+        else if (midiNote === 41) this.playTom(time, vel, 80, dest);     // Low Tom
+        else if (midiNote === 49) this.playCrash(time, vel, dest);       // Crash
+        else if (midiNote === 51) this.playRide(time, vel, dest);        // Ride
     }
 
     playKick(time, velocity, dest) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(dest); // Csatlakozás a sávhoz!
-
+        osc.connect(gain); gain.connect(dest); 
         osc.type = 'sine';
         osc.frequency.setValueAtTime(150, time);
         osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
         gain.gain.setValueAtTime(velocity, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
-
-        osc.start(time);
-        osc.stop(time + 0.5);
+        osc.start(time); osc.stop(time + 0.5);
     }
 
     playSnare(time, velocity, dest) {
         const osc = this.ctx.createOscillator();
         const oscGain = this.ctx.createGain();
         osc.type = 'triangle';
-        osc.connect(oscGain);
-        oscGain.connect(dest); // Csatlakozás a sávhoz!
-        
+        osc.connect(oscGain); oscGain.connect(dest); 
         osc.frequency.setValueAtTime(200, time);
         oscGain.gain.setValueAtTime(velocity * 0.5, time);
         oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
-        osc.start(time);
-        osc.stop(time + 0.2);
+        osc.start(time); osc.stop(time + 0.2);
 
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
         const noiseFilter = this.ctx.createBiquadFilter();
         const noiseGain = this.ctx.createGain();
-        
-        noiseFilter.type = 'highpass';
-        noiseFilter.frequency.value = 1000;
-        
-        noise.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(dest); // Csatlakozás a sávhoz!
-
+        noiseFilter.type = 'highpass'; noiseFilter.frequency.value = 1000;
+        noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(dest); 
         noiseGain.gain.setValueAtTime(velocity, time);
         noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
-        noise.start(time);
-        noise.stop(time + 0.3);
+        noise.start(time); noise.stop(time + 0.3);
     }
 
     playHiHat(time, velocity, decay, dest) {
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
-        
         const bandpass = this.ctx.createBiquadFilter();
-        bandpass.type = 'bandpass';
-        bandpass.frequency.value = 10000;
-        
+        bandpass.type = 'bandpass'; bandpass.frequency.value = 10000;
         const highpass = this.ctx.createBiquadFilter();
-        highpass.type = 'highpass';
-        highpass.frequency.value = 7000;
-
+        highpass.type = 'highpass'; highpass.frequency.value = 7000;
         const gain = this.ctx.createGain();
-
-        noise.connect(bandpass);
-        bandpass.connect(highpass);
-        highpass.connect(gain);
-        gain.connect(dest); // Csatlakozás a sávhoz!
-
+        noise.connect(bandpass); bandpass.connect(highpass); highpass.connect(gain); gain.connect(dest); 
         gain.gain.setValueAtTime(velocity * 0.8, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+        noise.start(time); noise.stop(time + decay + 0.1);
+    }
 
-        noise.start(time);
-        noise.stop(time + decay + 0.1);
+    // --- ÚJ HANGOK ---
+    playTom(time, velocity, freq, dest) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(dest);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.2, time + 0.3); // Kicsit lassabb mélyülés, mint a kick
+        gain.gain.setValueAtTime(velocity, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+        osc.start(time); osc.stop(time + 0.7);
+    }
+
+    playCrash(time, velocity, dest) {
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = this.noiseBuffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass'; filter.frequency.value = 7000; filter.Q.value = 0.5;
+        const gain = this.ctx.createGain();
+        noise.connect(filter); filter.connect(gain); gain.connect(dest);
+        gain.gain.setValueAtTime(velocity, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 2.5); // Hosszú lecsengés
+        noise.start(time); noise.stop(time + 2.6);
+    }
+
+    playRide(time, velocity, dest) {
+        const gain = this.ctx.createGain();
+        gain.connect(dest);
+        gain.gain.setValueAtTime(velocity * 0.6, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5);
+
+        // A ride egy komplex fémes hang, 3 magas oszcillátor adja a "ping"-et
+        [3200, 4800, 6200].forEach(f => {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'square'; 
+            osc.frequency.setValueAtTime(f, time);
+            osc.connect(gain);
+            osc.start(time); osc.stop(time + 1.6);
+        });
+
+        // Kis zaj a rezonanciához
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = this.noiseBuffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass'; filter.frequency.value = 8000;
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(velocity * 0.15, time);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 1.0);
+        noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(dest);
+        noise.start(time); noise.stop(time + 1.1);
     }
 }
 
