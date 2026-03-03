@@ -170,33 +170,42 @@ function drawPattern(canvas, clip, color) {
     const height = canvas.height;
     ctx.clearRect(0, 0, width, height);
 
-    // Vékony háttér-vonalak, hogy lássuk, ez egy rácsos pattern (4 dobhanghoz)
+    // Most már 9 hangszerünk van, így 9 sorra osztjuk a canvas-t
+    const numInst = 9;
+    const rowHeight = height / numInst;
+
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for(let i=1; i<4; i++) {
-        ctx.moveTo(0, (height/4)*i);
-        ctx.lineTo(width, (height/4)*i);
+    for(let i=1; i<numInst; i++) {
+        ctx.moveTo(0, rowHeight * i);
+        ctx.lineTo(width, rowHeight * i);
     }
     ctx.stroke();
 
-    // Végigmegyünk a klip "kottáján", és kirajzoljuk a hangjegyeket
+    // Hozzárendeljük a MIDI kódokat a sorokhoz (fentről lefelé)
+    const noteRowMap = {
+        49: 0, // Crash
+        51: 1, // Ride
+        48: 2, // Hi Tom
+        45: 3, // Mid Tom
+        41: 4, // Low Tom
+        46: 5, // Open Hat
+        42: 6, // Closed Hat
+        38: 7, // Snare
+        36: 8  // Kick
+    };
+
     if (clip.patternData && clip.patternData.notes) {
         clip.patternData.notes.forEach(noteEvent => {
             const x = noteEvent.start * PX_PER_SECOND;
-            const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); // Min 3px széles
+            const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); 
             
-            let y = 0;
-            let h = height / 4;
+            const row = noteRowMap[noteEvent.note] !== undefined ? noteRowMap[noteEvent.note] : 8;
+            const y = row * rowHeight;
             
-            // "Mű" sávkiosztás a vizualizációhoz (0=OH, 1=CH, 2=SN, 3=BD)
-            if (noteEvent.note === 46) y = 0; 
-            else if (noteEvent.note === 42) y = height/4; 
-            else if (noteEvent.note === 38) y = (height/4)*2; 
-            else if (noteEvent.note === 36) y = (height/4)*3; 
-
             ctx.fillStyle = color;
-            ctx.fillRect(x, y + 2, w, h - 4);
+            ctx.fillRect(x, y + 1, w, rowHeight - 2);
         });
     }
 }
@@ -240,23 +249,29 @@ function handleResizeMove(clientX) {
         if (snapPx > 0) {
             newWidth = Math.round(newWidth / snapPx) * snapPx;
         }
-
         if (newWidth < 10) newWidth = 10; 
         
-        const maxDuration = resizeTarget.audioBuffer.duration - resizeStartTrim;
-        if (newWidth / PX_PER_SECOND > maxDuration) {
-            newWidth = maxDuration * PX_PER_SECOND;
+        // ÚJ: Ha Pattern klip, szabadon nyújtható
+        if (resizeTarget.dataset.type === 'pattern') {
+            resizeTarget.style.width = `${newWidth}px`;
+            resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
+            
+            const canvas = resizeTarget.querySelector('canvas');
+            if (canvas) canvas.style.width = `${newWidth}px`;
+        } else {
+            // Hangfájl esetén nem húzható túl a saját hosszán
+            const maxDuration = resizeTarget.audioBuffer.duration - resizeStartTrim;
+            if (newWidth / PX_PER_SECOND > maxDuration) {
+                newWidth = maxDuration * PX_PER_SECOND;
+            }
+            resizeTarget.style.width = `${newWidth}px`;
+            resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
         }
-
-        resizeTarget.style.width = `${newWidth}px`;
-        resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
     
     } else if (resizeSide === 'left') {
+        // Bal oldal: Itt minden marad a régiben (ez csak Audio klipnél hívódik meg)
         let newLeft = resizeStartLeft + deltaPx;
-
-        if (snapPx > 0) {
-            newLeft = Math.round(newLeft / snapPx) * snapPx;
-        }
+        if (snapPx > 0) newLeft = Math.round(newLeft / snapPx) * snapPx;
 
         const appliedDeltaPx = newLeft - resizeStartLeft;
         let newWidth = resizeStartWidth - appliedDeltaPx;
@@ -279,9 +294,7 @@ function handleResizeMove(clientX) {
         resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
         
         const canvas = resizeTarget.querySelector('canvas');
-        if (canvas) {
-            canvas.style.left = `-${newTrim * PX_PER_SECOND}px`;
-        }
+        if (canvas) canvas.style.left = `-${newTrim * PX_PER_SECOND}px`;
     }
 }
 
@@ -544,6 +557,11 @@ function openDrumEditor(clip) {
     title.textContent = clip.querySelector('.clip-name').textContent + ' - EDITOR';
     
     const instruments = [
+        { id: 'cr', name: 'Crash', note: 49 },
+        { id: 'rd', name: 'Ride', note: 51 },
+        { id: 'ht', name: 'Hi Tom', note: 48 },
+        { id: 'mt', name: 'Mid Tom', note: 45 },
+        { id: 'lt', name: 'Low Tom', note: 41 },
         { id: 'oh', name: 'Open Hat', note: 46 },
         { id: 'ch', name: 'Hi-Hat', note: 42 },
         { id: 'sn', name: 'Snare', note: 38 },
@@ -2062,15 +2080,15 @@ function addPatternClipToTrack(container, name, startTime, lengthInBars = 1) {
     clip.appendChild(canvas);
 
     // 3. Resize fülek (Később hasznos lesz a loopoláshoz)
-    const leftHandle = document.createElement('div');
-    leftHandle.className = 'resize-handle left';
-    leftHandle.onmousedown = (e) => initResize(e, leftHandle, clip);
+    //const leftHandle = document.createElement('div');
+    //leftHandle.className = 'resize-handle left';
+    //leftHandle.onmousedown = (e) => initResize(e, leftHandle, clip);
     
     const rightHandle = document.createElement('div');
     rightHandle.className = 'resize-handle right';
     rightHandle.onmousedown = (e) => initResize(e, rightHandle, clip);
     
-    clip.appendChild(leftHandle);
+    //clip.appendChild(leftHandle);
     clip.appendChild(rightHandle);
 
     container.appendChild(clip);
@@ -2491,6 +2509,78 @@ function updateMeters() {
 
     requestAnimationFrame(updateMeters);
 }
+
+// ==========================================================
+// --- BILLENTYŰZET PARANCSOK (SHORTCUTS) ---
+// ==========================================================
+document.addEventListener('keydown', (e) => {
+    // VÉDELEM: Ha épp egy beviteli mezőben vagyunk (BPM, Jelszó, vagy Sávnév átírása), 
+    // akkor ne süljenek el a DAW billentyűparancsai!
+    const isTyping = e.target.tagName === 'INPUT' || 
+                     e.target.tagName === 'TEXTAREA' || 
+                     e.target.isContentEditable;
+    
+    if (isTyping) return;
+
+    // --- ÚJ: CTRL + D (Duplikálás) ---
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); // Megakadályozzuk, hogy a böngésző könyvjelzőt csináljon
+        const dupBtn = document.querySelector('.duplicate-btn');
+        if (dupBtn) {
+            dupBtn.classList.add('active'); // Vizuális gombnyomás
+            performDuplicate(e);
+        }
+        return;
+    }
+
+    // 1. SZÓKÖZ (Space): Lejátszás / Megállítás
+    if (e.code === 'Space') {
+        e.preventDefault(); // Megakadályozza, hogy a szóköz legörgessen az oldal aljára
+        const playBtn = document.querySelector('.play-btn');
+        if (playBtn) playBtn.click();
+    }
+
+    // 2. DELETE vagy BACKSPACE: Kijelölt klipek törlése
+    if (e.code === 'Delete' || e.code === 'Backspace') {
+        e.preventDefault();
+        const deleteBtn = document.querySelector('.delete-btn');
+        if (deleteBtn) {
+            deleteBtn.classList.add('active'); // Vizuális felvillanás
+            performDelete(e);
+        }
+    }
+
+    // 3. ENTER: Ugrás a kezdetre (Return to Zero)
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        e.preventDefault();
+        const rewindBtn = document.querySelector('.rewind-btn');
+        if (rewindBtn) rewindBtn.click();
+    }
+
+    // 4. 'R' betű: Felvétel (Record) gomb ki/be kapcsolása
+    if (e.key.toLowerCase() === 'r') {
+        const recBtn = document.querySelector('.control-panel .rec-btn');
+        if (recBtn) recBtn.click();
+    }
+
+    // 5. 'L' betű: Loop gomb ki/be
+    if (e.key.toLowerCase() === 'l') {
+        const loopBtn = document.querySelector('.loop-btn');
+        if (loopBtn) loopBtn.click();
+    }
+
+    // 6. 'C' betű: Click (Metronóm) ki/be
+    if (e.key.toLowerCase() === 'c') {
+        const clickBtn = document.querySelector('.click-btn');
+        if (clickBtn) clickBtn.click();
+    }
+    
+    // 7. 'S' betű: Kijelölő eszköz (Select tool) ki/be
+    if (e.key.toLowerCase() === 's') {
+        const selectBtn = document.querySelector('.select-btn');
+        if (selectBtn) selectBtn.click();
+    }
+});
 
 // Alapállapot beállítása az induláskor
 createTrack('guitar');
