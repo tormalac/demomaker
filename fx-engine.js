@@ -392,6 +392,79 @@ class AnalogDrumMachine {
     }
 }
 
+// ==========================================================
+// --- SYNTH ENGINE: VIRTUAL ANALOG SYNTHESIZER ---
+// ==========================================================
+class AnalogSynth {
+    constructor(ctx) {
+        this.ctx = ctx;
+        
+        // Alapértelmezett Szinti Paraméterek (Ezeket később tekergethetjük UI-ról)
+        this.oscType = 'sawtooth'; // Fűrészfog (klasszikus vastag szinti)
+        this.cutoff = 1500;        // Szűrő vágási frekvencia (Filter)
+        this.resonance = 5;        // Szűrő rezonancia (Q)
+        
+        // Borítékgörbe (ADSR)
+        this.attack = 0.05;  // Mennyi idő alatt hangosodik be
+        this.decay = 0.2;    // Mennyi idő alatt esik vissza a sustain szintre
+        this.sustain = 0.4;  // Kitartott hangerő
+        this.release = 0.5;  // Gomb elengedése utáni lecsengés
+    }
+
+    // Hang lejátszása (A Piano Roll hívja meg)
+    playNote(midiNote, time, duration, velocity = 100, destinationNode) {
+        const dest = destinationNode || this.ctx.destination;
+        const vel = velocity / 127;
+        
+        // MIDI kód (pl. 60 = C4) átalakítása frekvenciává (Hz)
+        const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+        // 1. Oszcillátor (A hangforrás)
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator(); // Két oszcillátor a vastagabb hangért!
+        
+        osc1.type = this.oscType;
+        osc2.type = 'square'; // A második kicsit más
+        
+        osc1.frequency.value = freq;
+        // A második oszcillátort picit elhangoljuk (+5 cent), ettől lesz széles a hang!
+        osc2.frequency.value = freq * Math.pow(2, 5 / 1200); 
+
+        // 2. Szűrő (Filter) - Kerekíti a hangot
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.Q.value = this.resonance;
+        
+        // Filter Envelope (Nyit, majd visszazár a Cutoff értékre)
+        filter.frequency.setValueAtTime(this.cutoff / 4, time);
+        filter.frequency.linearRampToValueAtTime(this.cutoff * 2, time + this.attack);
+        filter.frequency.exponentialRampToValueAtTime(this.cutoff, time + this.attack + this.decay);
+
+        // 3. Erősítő (VCA) - Hangerő borítékgörbe
+        const vca = this.ctx.createGain();
+        
+        vca.gain.setValueAtTime(0, time);
+        vca.gain.linearRampToValueAtTime(vel * 0.5, time + this.attack); // Attack
+        vca.gain.exponentialRampToValueAtTime((vel * 0.5) * this.sustain, time + this.attack + this.decay); // Decay -> Sustain
+        vca.gain.setValueAtTime((vel * 0.5) * this.sustain, time + duration); // Kitartás
+        vca.gain.linearRampToValueAtTime(0.001, time + duration + this.release); // Release
+
+        // Összekötés: Osc -> Filter -> VCA -> Kifelé a sávra!
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(vca);
+        vca.connect(dest);
+
+        // Indítás és Leállítás
+        osc1.start(time);
+        osc2.start(time);
+        
+        // Biztonsági leállítás a release után
+        osc1.stop(time + duration + this.release + 0.1);
+        osc2.stop(time + duration + this.release + 0.1);
+    }
+}
+
 // --- 1. NV-73 Preamp (Drive + EQ) ---
 class NV73Preamp {
     constructor(audioCtx) {
@@ -1227,71 +1300,3 @@ function rebuildFxRouting(track) {
         currentNode.connect(track.fxOutputNode);
     }
 }
-
-// ==========================================================
-// --- STEP SEQUENCER UI (DOBGÉP) ---
-// ==========================================================
-const seqStyles = document.createElement('style');
-seqStyles.innerHTML = `
-    #seq-modal-overlay {
-        position: fixed; top: 0; bottom: 0; left: 0; right: 0;
-        background: rgba(0,0,0,0.85); z-index: 3000;
-        display: none; align-items: center; justify-content: center;
-        backdrop-filter: blur(5px);
-    }
-    #seq-modal {
-        background: #111; border: 1px solid #3fa9f5; border-radius: 4px;
-        width: 95%; max-width: 900px; padding: 0;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.8); display: flex; flex-direction: column;
-    }
-    .seq-header {
-        background: #0a0a0a; padding: 15px 20px; border-bottom: 1px solid #222;
-        display: flex; justify-content: space-between; align-items: center;
-    }
-    .seq-header h2 { margin: 0; font-size: 1.2rem; color: #3fa9f5; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 2px;}
-    .close-seq { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1.5rem; transition: 0.2s;}
-    .close-seq:hover { color: #fff; }
-    
-    .seq-body { padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #151515;}
-    
-    .seq-row { display: flex; align-items: center; gap: 10px; }
-    .seq-inst-name { 
-        width: 80px; color: #aaa; font-family: var(--font-mono); font-size: 0.8rem; 
-        text-transform: uppercase; text-align: right; padding-right: 10px; font-weight: bold;
-    }
-    
-    .seq-steps { display: flex; flex: 1; gap: 4px; }
-    
-    .seq-step-btn {
-        flex: 1; height: 40px; background: #222; border: 1px solid #111; border-radius: 2px;
-        cursor: pointer; transition: background 0.1s; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
-    }
-    .seq-step-btn:hover { background: #333; }
-    
-    /* Ütem-kiemelés (minden 4. lépés egy picit más színű, hogy lásd a negyedeket) */
-    .seq-step-btn:nth-child(4n+1) { background: #2a2a2a; }
-    
-    /* Aktív lépés (neon kék) */
-    .seq-step-btn.active { 
-        background: #3fa9f5; border-color: #fff;
-        box-shadow: 0 0 10px rgba(63, 169, 245, 0.6), inset 0 0 5px rgba(255,255,255,0.5);
-    }
-    
-    /* A futófény (Playhead a dobgépen belül) */
-    .seq-step-btn.playing { border-bottom: 3px solid #fff; }
-`;
-document.head.appendChild(seqStyles);
-
-const seqModalHTML = `
-    <div id="seq-modal-overlay">
-        <div id="seq-modal">
-            <div class="seq-header">
-                <h2 id="seq-title">DRUM SEQUENCER</h2>
-                <button class="close-seq" id="close-seq-btn">×</button>
-            </div>
-            <div class="seq-body" id="seq-grid">
-                </div>
-        </div>
-    </div>
-`;
-document.body.insertAdjacentHTML('beforeend', seqModalHTML);
