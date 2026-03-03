@@ -330,7 +330,7 @@ h1, h2, h3 {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.7rem;
-    padding: 8px 10px;
+    padding: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -409,9 +409,9 @@ h1, h2, h3 {
   color: #aaa;
   font-family: var(--font-mono);
   text-align: center;
-  padding: 6px 10px;
-  width: 40px;
+  padding: 8px;
   font-size: 0.7rem;
+  width: 32px;
   cursor: text;
   transition: all 0.15s ease;
 }
@@ -436,9 +436,9 @@ h1, h2, h3 {
   font-family: var(--font-mono);
   text-transform: uppercase;
   text-align: center;
-  padding: 6px 10px;
+  padding: 8px;
   font-size: 0.7rem;
-  width: 40px;
+  width: 32px;
   cursor: text;
   transition: all 0.2s ease;
 }
