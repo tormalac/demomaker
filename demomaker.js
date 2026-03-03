@@ -2084,12 +2084,12 @@ function addPatternClipToTrack(container, name, startTime, lengthInBars = 1) {
     //leftHandle.className = 'resize-handle left';
     //leftHandle.onmousedown = (e) => initResize(e, leftHandle, clip);
     
-    const rightHandle = document.createElement('div');
-    rightHandle.className = 'resize-handle right';
-    rightHandle.onmousedown = (e) => initResize(e, rightHandle, clip);
+    //const rightHandle = document.createElement('div');
+    //rightHandle.className = 'resize-handle right';
+    //rightHandle.onmousedown = (e) => initResize(e, rightHandle, clip);
     
     //clip.appendChild(leftHandle);
-    clip.appendChild(rightHandle);
+    //clip.appendChild(rightHandle);
 
     container.appendChild(clip);
 
