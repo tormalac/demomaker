@@ -1380,21 +1380,32 @@ h1, h2, h3 {
 .seq-step-btn {
     flex: 1;
     height: 34px;
-    background: #222;
+    background: #181818; 
     border: 1px solid #333;
     border-radius: 3px;
     cursor: pointer;
     transition: background 0.1s;
 }
 
+.seq-step-btn:nth-child(8n+1),
+.seq-step-btn:nth-child(8n+2),
+.seq-step-btn:nth-child(8n+3),
+.seq-step-btn:nth-child(8n+4) {
+    background: #2a2a2a;
+}
+
+.seq-step-btn:nth-child(4n+1) {
+    border-left: 2px solid #666;
+}
+
 .seq-step-btn:hover {
-    background: #333;
+    background: #444 !important;
 }
 
 /* Dobgép aktív (leütött) állapota */
 .seq-step-btn.active {
-    background: #3fa9f5;
-    border-color: #fff;
+    background: #3fa9f5 !important;
+    border-color: #fff !important;
     box-shadow: 0 0 8px rgba(63, 169, 245, 0.6);
 }
 
@@ -1460,6 +1471,17 @@ h1, h2, h3 {
 
 .pr-cell:hover {
     background: rgba(255, 255, 255, 0.1);
+}
+
+.pr-cell:nth-child(8n+1),
+.pr-cell:nth-child(8n+2),
+.pr-cell:nth-child(8n+3),
+.pr-cell:nth-child(8n+4) {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pr-cell:nth-child(4n+1) {
+    border-left: 1px solid #444;
 }
 
 /* Aktív (leütött) hangjegy a Piano Roll-ban */
