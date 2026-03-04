@@ -323,7 +323,7 @@ let PX_PER_SECOND = 100 * zoom;
 let currentGrid = "1/8";
 
 const GRID_MAP = {
-  "1/2": 2, "1/4": 1, "1/4T": 1/3, "1/8": 0.5,
+  "1/4": 1, "1/4T": 1/3, "1/8": 0.5,
   "1/8T": 1/6, "1/16": 0.25, "1/16T": 1/12,
   "1/32": 0.125, "1/64": 0.0625 
 };
@@ -587,11 +587,20 @@ function openDrumEditor(clip) {
         { id: 'bd', name: 'Kick', note: 36 }
     ];
 
-    // 16 tizenhatod (1 ütem). Később a klip hosszához igazítjuk.
+    /* 16 tizenhatod (1 ütem). Később a klip hosszához igazítjuk.
     const stepsPerBar = 16; 
     const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
     const secPerBeat = 60 / bpm;
-    const secPerStep = secPerBeat / 4; // 1 tizenhatod hossza mp-ben (4/4 esetén)
+    const secPerStep = secPerBeat / 4; */
+
+    // --- ÚJ, DINAMIKUS RÁCS KISZÁMÍTÁSA ---
+    // Hány 16-od hang fér el egy ütemben az aktuális ütemmutató szerint?
+    const stepsPerBar = timeSig[0] * (16 / timeSig[1]); 
+    const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
+    
+    // Egy 16-od hang abszolút hossza másodpercben (ez mindig fix a BPM-hez képest)
+    const secPerStep = (60 / bpm) / 4;
+
 
     seqGrid.innerHTML = '';
 
@@ -607,43 +616,41 @@ function openDrumEditor(clip) {
         const stepsContainer = document.createElement('div');
         stepsContainer.className = 'seq-steps';
         
+        // --- DINAMIKUS DOB RÁCS CIKLUS ---
+        const stepsPerBeat = 16 / timeSig[1]; // Kiszámolja, hány lépés egy ütés (pl. /4 esetén 4, /8 esetén 2)
+
         for(let i = 0; i < totalSteps; i++) {
             const btn = document.createElement('button');
             btn.className = 'seq-step-btn';
+            
+            // Dinamikus CSS osztályok ráosztása a Time Sig alapján!
+            if (i % stepsPerBeat === 0) btn.classList.add('beat-start');
+            if (Math.floor(i / stepsPerBeat) % 2 === 0) btn.classList.add('beat-even');
+            else btn.classList.add('beat-odd');
             
             // Megnézzük, van-e hangjegy a klipben ezen az időponton
             const noteTime = i * secPerStep;
             const existingNoteIndex = clip.patternData.notes.findIndex(n => n.note === inst.note && Math.abs(n.start - noteTime) < 0.01);
             
-            if (existingNoteIndex !== -1) {
-                btn.classList.add('active');
-            }
+            if (existingNoteIndex !== -1) btn.classList.add('active');
             
             // Szerkesztés (Kattintás) logikája
             btn.addEventListener('click', () => {
-                const isActive = btn.classList.contains('active');
-                if (isActive) {
-                    // Törlés a memóriából
+                if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
                     const idx = clip.patternData.notes.findIndex(n => n.note === inst.note && Math.abs(n.start - noteTime) < 0.01);
                     if (idx !== -1) clip.patternData.notes.splice(idx, 1);
                 } else {
-                    // Hozzáadás a memóriához
                     btn.classList.add('active');
                     clip.patternData.notes.push({note: inst.note, start: noteTime, duration: 0.1, velocity: 100});
                     
-                    // Hang lejátszása kattintáskor (Visszajelzés)
                     if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
-                    // A sáv bemenetére küldjük (így ha van rajta FX, azon is átmegy)
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
                     window.analogDrums.playNote(inst.note, audioCtx.currentTime, 100, trackOutput);
                 }
                 
-                // AZONNAL FRISSÍTJÜK A CANVAS-T A SÁVON!
                 const color = clip.closest('.track-container').classList.contains('drum') ? '#3fa9f5' : '#b084f7';
-                const canvas = clip.querySelector('canvas');
-                // Segédvonalak újrarajzolása
-                drawPattern(canvas, clip, color);
+                drawPattern(clip.querySelector('canvas'), clip, color);
             });
             stepsContainer.appendChild(btn);
         }
@@ -694,10 +701,18 @@ function openPianoRoll(clip) {
         }
     }
 
-    const stepsPerBar = 16; 
+    /*const stepsPerBar = 16; 
     const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
     const secPerBeat = 60 / bpm;
-    const secPerStep = secPerBeat / 4; 
+    const secPerStep = secPerBeat / 4;*/
+
+    // --- ÚJ, DINAMIKUS RÁCS KISZÁMÍTÁSA ---
+    // Hány 16-od hang fér el egy ütemben az aktuális ütemmutató szerint?
+    const stepsPerBar = timeSig[0] * (16 / timeSig[1]); 
+    const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
+    
+    // Egy 16-od hang abszolút hossza másodpercben (ez mindig fix a BPM-hez képest)
+    const secPerStep = (60 / bpm) / 4; 
 
     // A dobgrid gap-jét levesszük, hogy összeérjenek a cellák
     seqGrid.style.gap = '0';
@@ -707,19 +722,28 @@ function openPianoRoll(clip) {
     // Beállítjuk a színváltozót a rács konténerén a téglákhoz
     seqGrid.style.setProperty('--piano-roll-note-color', trackColor);
 
+    // --- ÚJ: HÚZVA RAJZOLÁS VÁLTOZÓI ---
+    let isDrawingPR = false;
+    let currentPRNote = null;
+    
+    // Ha bárhol felengedjük az egeret, vége a rajzolásnak
+    document.addEventListener('mouseup', () => { 
+        isDrawingPR = false; 
+        currentPRNote = null; 
+    }, {once: false});
+
+    const stepsPerBeat = 16 / timeSig[1]; 
+
     notes.forEach(key => {
         const row = document.createElement('div');
         row.className = 'pr-row';
-        if (key.type === 'black') row.classList.add('black-row'); // Sötétebb háttér a rácson
+        if (key.type === 'black') row.classList.add('black-row'); 
         
-        // Bal oldali zongorabillentyű
         const keyLabel = document.createElement('div');
         keyLabel.className = `pr-key ${key.type}`;
-        // Csak a C hangokra írjuk ki a nevet (C3, C4)
         keyLabel.textContent = key.name;
         row.appendChild(keyLabel);
         
-        // Jobb oldali folytonos rács
         const stepsContainer = document.createElement('div');
         stepsContainer.className = 'pr-grid';
         
@@ -727,33 +751,61 @@ function openPianoRoll(clip) {
             const cell = document.createElement('div');
             cell.className = 'pr-cell';
             
+            // Dinamikus CSS osztályok (ugyanaz, mint a dobgépnél)
+            if (i % stepsPerBeat === 0) cell.classList.add('beat-start');
+            if (Math.floor(i / stepsPerBeat) % 2 === 0) cell.classList.add('beat-even');
+            else cell.classList.add('beat-odd');
+            
             const noteTime = i * secPerStep;
-            const existingNoteIndex = clip.patternData.notes.findIndex(n => n.note === key.note && Math.abs(n.start - noteTime) < 0.01);
             
-            if (existingNoteIndex !== -1) {
-                cell.classList.add('active');
-            }
+            // ÚJ: Megnézzük, hogy ez a cella BELEESIK-E egy elnyújtott hangba!
+            const isActive = clip.patternData.notes.some(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
+            if (isActive) cell.classList.add('active');
             
-            // Itt már nem kell explicit szín a rajzoláshoz, mert a CSS a sáv színét használja!
-            cell.addEventListener('mousedown', () => {
+            // --- 1. EGÉRGOMB LENYOMÁSA (Kattintás) ---
+            cell.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDrawingPR = true;
+                
                 if (cell.classList.contains('active')) {
-                    cell.classList.remove('active');
-                    const idx = clip.patternData.notes.findIndex(n => n.note === key.note && Math.abs(n.start - noteTime) < 0.01);
+                    // Ha aktívra kattintunk, TÖRLÜK a teljes elnyújtott hangot
+                    const idx = clip.patternData.notes.findIndex(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
                     if (idx !== -1) clip.patternData.notes.splice(idx, 1);
-                } else {
-                    cell.classList.add('active');
-                    clip.patternData.notes.push({note: key.note, start: noteTime, duration: secPerStep * 0.95, velocity: 100});
                     
-                    // Hang lejátszása visszajelzésként
+                    // Vizuális frissítés ezen a soron
+                    Array.from(stepsContainer.children).forEach((c, idx) => {
+                        const t = idx * secPerStep;
+                        const active = clip.patternData.notes.some(n => n.note === key.note && t >= n.start - 0.001 && t < n.start + n.duration - 0.001);
+                        if (!active) c.classList.remove('active');
+                    });
+                } else {
+                    // ÚJ HANG LÉTREHOZÁSA (Kezdetben 1 cella hosszú)
+                    currentPRNote = {note: key.note, start: noteTime, duration: secPerStep, velocity: 100};
+                    clip.patternData.notes.push(currentPRNote);
+                    cell.classList.add('active');
+                    
+                    // Hanglejátszás
                     if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
                     window.analogSynth.playNote(key.note, audioCtx.currentTime, 0.2, 100, trackOutput);
                 }
-                
-                // Grafika frissítése a klipen az Arrangerben (dinamikus színnel)
-                const canvas = clip.querySelector('canvas');
-                drawPattern(canvas, clip, trackColor);
+                drawPattern(clip.querySelector('canvas'), clip, trackColor);
             });
+
+            // --- 2. EGÉR HÚZÁSA (Hang elnyújtása jobbra) ---
+            cell.addEventListener('mouseenter', () => {
+                if (isDrawingPR && currentPRNote && noteTime > currentPRNote.start) {
+                    // Megnyújtjuk az aktuális hang hosszát a memóriában!
+                    currentPRNote.duration = (noteTime - currentPRNote.start) + secPerStep;
+                    
+                    // Vizuálisan bekapcsoljuk a cellát
+                    cell.classList.add('active');
+                    
+                    // Újrarajzoljuk a kottát a sávon
+                    drawPattern(clip.querySelector('canvas'), clip, trackColor);
+                }
+            });
+            
             stepsContainer.appendChild(cell);
         }
         row.appendChild(stepsContainer);
@@ -1190,6 +1242,29 @@ gridDropdown.querySelectorAll('button').forEach(btn => {
   });
 });
 
+// --- ÜTEMMUTATÓ (TIME SIGNATURE) BEÁLLÍTÁSA ---
+const tsInput = document.querySelector('.time-signature-input');
+tsInput.addEventListener('change', (e) => {
+    // Szétszedjük a beírt értéket (pl. "3/4" -> 3 és 4)
+    const parts = e.target.value.split('/');
+    if (parts.length === 2) {
+        const num = parseInt(parts[0]);
+        const den = parseInt(parts[1]);
+        
+        // Biztonsági ellenőrzés (csak érvényes zenei értékeket fogadunk el)
+        if (num > 0 && num <= 32 && [2, 4, 8, 16].includes(den)) {
+            timeSig = [num, den];
+            
+            // Újrarajzoljuk a hátteret és a vonalzót
+            drawRuler();
+            drawAllGrids();
+            return;
+        }
+    }
+    // Ha hülyeséget írt be, visszaírjuk az eredetit
+    e.target.value = `${timeSig[0]}/${timeSig[1]}`;
+});
+
 // --- SELECT GOMB EXTRA FUNKCIÓ: Kijelölések törlése kattintáskor ---
 const selectToolBtn = document.querySelector('.select-btn');
 if (selectToolBtn) {
@@ -1374,7 +1449,10 @@ let globalScrollX = 0;
 let currentPlayTime = 0; 
 const playTimeDisplay = document.querySelector('.play-time-btn');
 
-function secondsPerBar() { return (60 / bpm) * timeSig[0]; }
+function secondsPerBar() { 
+    const secondsPerBeat = 60 / bpm;
+    return timeSig[0] * secondsPerBeat * (4 / timeSig[1]); 
+}
 
 function drawRuler(totalBars = 200) {
 
@@ -1408,7 +1486,7 @@ function drawRuler(totalBars = 200) {
 
 function drawAllGrids() {
     const secondsPerBeat = 60 / bpm;
-    const barPx = (secondsPerBeat * timeSig[0]) * PX_PER_SECOND; 
+    const barPx = secondsPerBar() * PX_PER_SECOND; 
     const gridMultiplier = GRID_MAP[currentGrid] || 0.5;
     const gridPx = (secondsPerBeat * gridMultiplier) * PX_PER_SECOND;
 
@@ -1422,6 +1500,8 @@ function drawAllGrids() {
 }
 
 const zoomSlider = document.getElementById('zoomSlider');
+
+// 1. Amikor folyamatosan HÚZOD a csúszkát (Klipek szélességének dinamikus nyújtása)
 zoomSlider.addEventListener('input', (e) => {
     zoom = parseFloat(e.target.value);
     document.getElementById('zoomValueDisplay').textContent = zoom.toFixed(1) + 'x';
@@ -1439,35 +1519,51 @@ zoomSlider.addEventListener('input', (e) => {
         clip.style.width = `${duration * PX_PER_SECOND}px`;
 
         const canvas = clip.querySelector('canvas');
-        if (canvas && clip.audioBuffer) {
-            const fullWidth = clip.audioBuffer.duration * PX_PER_SECOND;
-            canvas.style.width = `${fullWidth}px`;
-            canvas.style.left = `-${trimOffset * PX_PER_SECOND}px`;
+        if (canvas) {
+            // HA AUDIO KLIP
+            if (clip.audioBuffer) {
+                const fullWidth = clip.audioBuffer.duration * PX_PER_SECOND;
+                canvas.style.width = `${fullWidth}px`;
+                canvas.style.left = `-${trimOffset * PX_PER_SECOND}px`;
+            } 
+            // HA PATTERN KLIP
+            else if (clip.dataset.type === 'pattern') {
+                canvas.style.width = `${duration * PX_PER_SECOND}px`;
+            }
         }
     });
     updatePlayheadVisuals();
 });
 
+// 2. Amikor ELENGEDED a csúszkát (Újrarajzoljuk a belső grafikát a tökéletes élességért)
 zoomSlider.addEventListener('change', (e) => {
     document.querySelectorAll('.audio-clip').forEach(clip => {
         const canvas = clip.querySelector('canvas');
-        if (canvas && clip.audioBuffer) {
+        if (!canvas) return;
+
+        // Szín megállapítása
+        let waveColor = '#00ffd5'; // Alap zöld
+        const parentTrack = clip.closest('.track-container');
+        
+        if (parentTrack) {
+            if (parentTrack.classList.contains('drum')) waveColor = '#3fa9f5';
+            else if (parentTrack.classList.contains('bass')) waveColor = '#ffd93d';
+            else if (parentTrack.classList.contains('synth')) waveColor = '#b084f7';
+            else if (parentTrack.classList.contains('vocal')) waveColor = '#ff7ac8';
+            else if (parentTrack.classList.contains('sample')) waveColor = '#ff8c00';
+        }
+
+        // --- ÚJ: PATTERN (MIDI) GRAFIKA ÚJRARAJZOLÁSA ---
+        if (clip.dataset.type === 'pattern') {
+            const duration = parseFloat(clip.dataset.duration);
+            const newWidth = duration * PX_PER_SECOND;
+            canvas.width = Math.min(Math.max(1, newWidth), 16384); 
+            drawPattern(canvas, clip, waveColor);
+        } 
+        // --- RÉGI: AUDIO WAVEFORM ÚJRARAJZOLÁSA ---
+        else if (clip.audioBuffer) {
             const fullWidth = clip.audioBuffer.duration * PX_PER_SECOND;
             canvas.width = Math.min(Math.max(1, fullWidth), 16384); 
-            
-            // --- INNENTŐL JÖN AZ ÚJ SZÍNEZŐ LOGIKA ---
-            let waveColor = '#00ffd5'; // Alap zöld
-            const parentTrack = clip.closest('.track-container');
-            
-            if (parentTrack) {
-                if (parentTrack.classList.contains('drum')) waveColor = '#3fa9f5';
-                else if (parentTrack.classList.contains('bass')) waveColor = '#ffd93d';
-                else if (parentTrack.classList.contains('synth')) waveColor = '#b084f7';
-                else if (parentTrack.classList.contains('vocal')) waveColor = '#ff7ac8';
-                else if (parentTrack.classList.contains('sample')) waveColor = '#ff8c00';
-            }
-
-            // Most már átadjuk a helyes színt az újrarajzolásnál is!
             drawWaveform(canvas, clip.audioBuffer, waveColor); 
         }
     });
@@ -2182,7 +2278,7 @@ function addPatternClipToTrack(container, name, startTime, lengthInBars = 1) {
 
     // Kiszámoljuk, milyen hosszú a klip pixelben (ütemek alapján)
     const secondsPerBeat = 60 / bpm;
-    const duration = lengthInBars * timeSig[0] * secondsPerBeat;
+    const duration = lengthInBars * secondsPerBar();
     const width = duration * PX_PER_SECOND;
 
     clip.style.width = `${width}px`;
@@ -2314,12 +2410,13 @@ rewindBtn.addEventListener('click', () => {
         startPlayTime = audioCtx.currentTime;
 
         // Metronóm újraütemezése
-        const secondsPerBeat = 60.0 / bpm;
-        const beatsPassed = Math.round((startOffset / secondsPerBeat) * 10000) / 10000;
+        const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
+        const beatsPassed = Math.round((startOffset / secondsPerClick) * 10000) / 10000;
         const nextBeatIndex = Math.ceil(beatsPassed);
         currentQuarterNote = nextBeatIndex % timeSig[0];
-        const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerBeat;
+        const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerClick;
         nextNoteTime = audioCtx.currentTime + nextBeatDelay;
+
         scheduler();
 
         // Klipek hangjának újraindítása az új pozícióból
@@ -2401,7 +2498,8 @@ function nextNote() {
 function scheduler() {
     while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
         playClickSound(nextNoteTime, currentQuarterNote);
-        nextNoteTime += 60.0 / bpm; 
+        const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
+        nextNoteTime += secondsPerClick; 
         currentQuarterNote++; 
         if (currentQuarterNote === timeSig[0]) currentQuarterNote = 0;
     }
@@ -2485,11 +2583,11 @@ function startPlayback() {
     startPlayTime = audioCtx.currentTime;
     startOffset = currentPlayTime; 
 
-    const secondsPerBeat = 60.0 / bpm;
-    const beatsPassed = Math.round((startOffset / secondsPerBeat) * 10000) / 10000;
+    const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
+    const beatsPassed = Math.round((startOffset / secondsPerClick) * 10000) / 10000;
     const nextBeatIndex = Math.ceil(beatsPassed);
     currentQuarterNote = nextBeatIndex % timeSig[0];
-    const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerBeat;
+    const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerClick;
     nextNoteTime = audioCtx.currentTime + nextBeatDelay;
     
     scheduler();
@@ -2543,12 +2641,13 @@ function updatePlayheadAnim() {
         startPlayTime = audioCtx.currentTime; // Az "új" 0. másodperc most van!
 
         // 3. Metronóm újraütemezése
-        const secondsPerBeat = 60.0 / bpm;
-        const beatsPassed = Math.round((startOffset / secondsPerBeat) * 10000) / 10000;
+        const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
+        const beatsPassed = Math.round((startOffset / secondsPerClick) * 10000) / 10000;
         const nextBeatIndex = Math.ceil(beatsPassed);
         currentQuarterNote = nextBeatIndex % timeSig[0];
-        const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerBeat;
+        const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerClick;
         nextNoteTime = audioCtx.currentTime + nextBeatDelay;
+
         scheduler();
 
         // 4. Klipek újraindítása az új pozícióból!
