@@ -869,14 +869,16 @@ document.addEventListener('click', e => {
                 const newClip = addPatternClipToTrack(clipsContainer, "Pattern " + Math.floor(Math.random()*100), startTime, 1);
                 
                 // --- TEST ADATOK: Tegyünk bele egy Alap Dob Groove-ot, hogy lássuk a grafikát! ---
-                const secPerBeat = 60 / bpm; // Egy negyed hossza másodpercben
-                newClip.patternData.notes.push({note: 36, start: 0, duration: 0.1, velocity: 100}); // Kick (1. ütés)
-                newClip.patternData.notes.push({note: 38, start: secPerBeat, duration: 0.1, velocity: 100}); // Snare (2. ütés)
-                newClip.patternData.notes.push({note: 36, start: secPerBeat*2, duration: 0.1, velocity: 100}); // Kick (3. ütés)
-                newClip.patternData.notes.push({note: 38, start: secPerBeat*3, duration: 0.1, velocity: 100}); // Snare (4. ütés)
+                if (trackContainer.classList.contains('drum')) {
+                   const secPerBeat = 60 / bpm; 
+                   newClip.patternData.notes.push({note: 36, start: 0, duration: 0.1, velocity: 100}); 
+                   newClip.patternData.notes.push({note: 38, start: secPerBeat, duration: 0.1, velocity: 100}); 
+                   newClip.patternData.notes.push({note: 36, start: secPerBeat*2, duration: 0.1, velocity: 100}); 
+                   newClip.patternData.notes.push({note: 38, start: secPerBeat*3, duration: 0.1, velocity: 100}); 
+                }
 
                 // Kirajzoljuk a Canvas-ra
-                const color = trackContainer.classList.contains('drum') ? '#3fa9f5' : '#b084f7';
+                const color = trackContainer.classList.contains('drum') ? '#3fa9f5' : (trackContainer.classList.contains('bass') ? '#ffd93d' : '#b084f7');
                 drawPattern(newClip.querySelector('canvas'), newClip, color);
 
                 const selectBtn = document.querySelector('.select-btn');
