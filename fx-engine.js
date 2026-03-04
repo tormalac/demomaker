@@ -280,16 +280,17 @@ class AnalogDrumMachine {
         const vel = velocity / 127; 
         const dest = destinationNode || this.ctx.destination; 
         
-        // Bővített General MIDI dobkiosztás:
-        if (midiNote === 36) this.playKick(time, vel, dest);
-        else if (midiNote === 38) this.playSnare(time, vel, dest);
-        else if (midiNote === 42) this.playHiHat(time, vel, 0.05, dest); // Zárt Hi-Hat
-        else if (midiNote === 46) this.playHiHat(time, vel, 0.3, dest);  // Nyitott Hi-Hat
-        else if (midiNote === 48) this.playTom(time, vel, 200, dest);    // High Tom
-        else if (midiNote === 45) this.playTom(time, vel, 130, dest);    // Mid Tom
-        else if (midiNote === 41) this.playTom(time, vel, 80, dest);     // Low Tom
-        else if (midiNote === 49) this.playCrash(time, vel, dest);       // Crash
-        else if (midiNote === 51) this.playRide(time, vel, dest);        // Ride
+        // Visszaadjuk a generált csomópontokat a leállításhoz!
+        if (midiNote === 36) return this.playKick(time, vel, dest);
+        else if (midiNote === 38) return this.playSnare(time, vel, dest);
+        else if (midiNote === 42) return this.playHiHat(time, vel, 0.05, dest); 
+        else if (midiNote === 46) return this.playHiHat(time, vel, 0.3, dest);  
+        else if (midiNote === 48) return this.playTom(time, vel, 200, dest);    
+        else if (midiNote === 45) return this.playTom(time, vel, 130, dest);    
+        else if (midiNote === 41) return this.playTom(time, vel, 80, dest);     
+        else if (midiNote === 49) return this.playCrash(time, vel, dest);       
+        else if (midiNote === 51) return this.playRide(time, vel, dest);
+        return [];
     }
 
     playKick(time, velocity, dest) {
@@ -302,6 +303,7 @@ class AnalogDrumMachine {
         gain.gain.setValueAtTime(velocity, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
         osc.start(time); osc.stop(time + 0.5);
+        return [osc]; // <-- Begyűjtve
     }
 
     playSnare(time, velocity, dest) {
@@ -323,6 +325,7 @@ class AnalogDrumMachine {
         noiseGain.gain.setValueAtTime(velocity, time);
         noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
         noise.start(time); noise.stop(time + 0.3);
+        return [osc, noise]; // <-- Begyűjtve
     }
 
     playHiHat(time, velocity, decay, dest) {
@@ -337,19 +340,20 @@ class AnalogDrumMachine {
         gain.gain.setValueAtTime(velocity * 0.8, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
         noise.start(time); noise.stop(time + decay + 0.1);
+        return [noise]; // <-- Begyűjtve
     }
 
-    // --- ÚJ HANGOK ---
     playTom(time, velocity, freq, dest) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain); gain.connect(dest);
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, time);
-        osc.frequency.exponentialRampToValueAtTime(freq * 0.2, time + 0.3); // Kicsit lassabb mélyülés, mint a kick
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.2, time + 0.3);
         gain.gain.setValueAtTime(velocity, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
         osc.start(time); osc.stop(time + 0.7);
+        return [osc]; // <-- Begyűjtve
     }
 
     playCrash(time, velocity, dest) {
@@ -360,26 +364,27 @@ class AnalogDrumMachine {
         const gain = this.ctx.createGain();
         noise.connect(filter); filter.connect(gain); gain.connect(dest);
         gain.gain.setValueAtTime(velocity, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 2.5); // Hosszú lecsengés
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 2.5);
         noise.start(time); noise.stop(time + 2.6);
+        return [noise]; // <-- Begyűjtve
     }
 
     playRide(time, velocity, dest) {
+        const nodes = [];
         const gain = this.ctx.createGain();
         gain.connect(dest);
         gain.gain.setValueAtTime(velocity * 0.6, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5);
 
-        // A ride egy komplex fémes hang, 3 magas oszcillátor adja a "ping"-et
         [3200, 4800, 6200].forEach(f => {
             const osc = this.ctx.createOscillator();
             osc.type = 'square'; 
             osc.frequency.setValueAtTime(f, time);
             osc.connect(gain);
             osc.start(time); osc.stop(time + 1.6);
+            nodes.push(osc); // <-- Begyűjtve
         });
 
-        // Kis zaj a rezonanciához
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
         const filter = this.ctx.createBiquadFilter();
@@ -389,6 +394,9 @@ class AnalogDrumMachine {
         noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 1.0);
         noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(dest);
         noise.start(time); noise.stop(time + 1.1);
+        nodes.push(noise); // <-- Begyűjtve
+        
+        return nodes;
     }
 }
 
@@ -398,70 +406,57 @@ class AnalogDrumMachine {
 class AnalogSynth {
     constructor(ctx) {
         this.ctx = ctx;
-        
-        // Alapértelmezett Szinti Paraméterek (Ezeket később tekergethetjük UI-ról)
-        this.oscType = 'sawtooth'; // Fűrészfog (klasszikus vastag szinti)
-        this.cutoff = 1500;        // Szűrő vágási frekvencia (Filter)
-        this.resonance = 5;        // Szűrő rezonancia (Q)
-        
-        // Borítékgörbe (ADSR)
-        this.attack = 0.05;  // Mennyi idő alatt hangosodik be
-        this.decay = 0.2;    // Mennyi idő alatt esik vissza a sustain szintre
-        this.sustain = 0.4;  // Kitartott hangerő
-        this.release = 0.5;  // Gomb elengedése utáni lecsengés
+        this.oscType = 'sawtooth';
+        this.cutoff = 1500;
+        this.resonance = 5;
+        this.attack = 0.05;
+        this.decay = 0.2;
+        this.sustain = 0.4;
+        this.release = 0.5;
     }
 
-    // Hang lejátszása (A Piano Roll hívja meg)
     playNote(midiNote, time, duration, velocity = 100, destinationNode) {
         const dest = destinationNode || this.ctx.destination;
         const vel = velocity / 127;
-        
-        // MIDI kód (pl. 60 = C4) átalakítása frekvenciává (Hz)
         const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
 
-        // 1. Oszcillátor (A hangforrás)
         const osc1 = this.ctx.createOscillator();
-        const osc2 = this.ctx.createOscillator(); // Két oszcillátor a vastagabb hangért!
+        const osc2 = this.ctx.createOscillator(); 
         
         osc1.type = this.oscType;
-        osc2.type = 'square'; // A második kicsit más
+        osc2.type = 'square';
         
         osc1.frequency.value = freq;
-        // A második oszcillátort picit elhangoljuk (+5 cent), ettől lesz széles a hang!
         osc2.frequency.value = freq * Math.pow(2, 5 / 1200); 
 
-        // 2. Szűrő (Filter) - Kerekíti a hangot
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
         filter.Q.value = this.resonance;
         
-        // Filter Envelope (Nyit, majd visszazár a Cutoff értékre)
         filter.frequency.setValueAtTime(this.cutoff / 4, time);
         filter.frequency.linearRampToValueAtTime(this.cutoff * 2, time + this.attack);
         filter.frequency.exponentialRampToValueAtTime(this.cutoff, time + this.attack + this.decay);
 
-        // 3. Erősítő (VCA) - Hangerő borítékgörbe
         const vca = this.ctx.createGain();
         
         vca.gain.setValueAtTime(0, time);
-        vca.gain.linearRampToValueAtTime(vel * 0.5, time + this.attack); // Attack
-        vca.gain.exponentialRampToValueAtTime((vel * 0.5) * this.sustain, time + this.attack + this.decay); // Decay -> Sustain
-        vca.gain.setValueAtTime((vel * 0.5) * this.sustain, time + duration); // Kitartás
-        vca.gain.linearRampToValueAtTime(0.001, time + duration + this.release); // Release
+        vca.gain.linearRampToValueAtTime(vel * 0.5, time + this.attack); 
+        vca.gain.exponentialRampToValueAtTime((vel * 0.5) * this.sustain, time + this.attack + this.decay); 
+        vca.gain.setValueAtTime((vel * 0.5) * this.sustain, time + duration); 
+        vca.gain.linearRampToValueAtTime(0.001, time + duration + this.release); 
 
-        // Összekötés: Osc -> Filter -> VCA -> Kifelé a sávra!
         osc1.connect(filter);
         osc2.connect(filter);
         filter.connect(vca);
         vca.connect(dest);
 
-        // Indítás és Leállítás
         osc1.start(time);
         osc2.start(time);
         
-        // Biztonsági leállítás a release után
         osc1.stop(time + duration + this.release + 0.1);
         osc2.stop(time + duration + this.release + 0.1);
+        
+        return [osc1, osc2]; // <-- Begyűjtve a leállításhoz!
     }
 }
 
