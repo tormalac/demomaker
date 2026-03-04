@@ -726,11 +726,9 @@ function openPianoRoll(clip) {
     let isDrawingPR = false;
     let currentPRNote = null;
     
-    // Ha bárhol felengedjük az egeret, vége a rajzolásnak
-    document.addEventListener('mouseup', () => { 
-        isDrawingPR = false; 
-        currentPRNote = null; 
-    }, {once: false});
+    // PC egér felengedés ÉS Mobil érintés felengedés bárhol a képernyőn
+    document.addEventListener('mouseup', () => { isDrawingPR = false; currentPRNote = null; });
+    document.addEventListener('touchend', () => { isDrawingPR = false; currentPRNote = null; });
 
     const stepsPerBeat = 16 / timeSig[1]; 
 
@@ -751,60 +749,80 @@ function openPianoRoll(clip) {
             const cell = document.createElement('div');
             cell.className = 'pr-cell';
             
-            // Dinamikus CSS osztályok (ugyanaz, mint a dobgépnél)
+            // --- ÚJ: Eltároljuk a cella adatait, hogy a mobil ujj-követő megtalálja ---
+            cell.dataset.time = i * secPerStep;
+            cell.dataset.note = key.note;
+            
+            // Dinamikus CSS osztályok
             if (i % stepsPerBeat === 0) cell.classList.add('beat-start');
             if (Math.floor(i / stepsPerBeat) % 2 === 0) cell.classList.add('beat-even');
             else cell.classList.add('beat-odd');
             
             const noteTime = i * secPerStep;
             
-            // ÚJ: Megnézzük, hogy ez a cella BELEESIK-E egy elnyújtott hangba!
             const isActive = clip.patternData.notes.some(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
             if (isActive) cell.classList.add('active');
             
-            // --- 1. EGÉRGOMB LENYOMÁSA (Kattintás) ---
-            cell.addEventListener('mousedown', (e) => {
-                e.preventDefault();
+            // --- KÖZÖS INDÍTÓ FÜGGVÉNY (Egér és Mobil) ---
+            const startDraw = (e) => {
+                if (e.cancelable) e.preventDefault(); // Megakadályozza a mobil görgetést
                 isDrawingPR = true;
                 
                 if (cell.classList.contains('active')) {
-                    // Ha aktívra kattintunk, TÖRLÜK a teljes elnyújtott hangot
                     const idx = clip.patternData.notes.findIndex(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
                     if (idx !== -1) clip.patternData.notes.splice(idx, 1);
                     
-                    // Vizuális frissítés ezen a soron
                     Array.from(stepsContainer.children).forEach((c, idx) => {
                         const t = idx * secPerStep;
                         const active = clip.patternData.notes.some(n => n.note === key.note && t >= n.start - 0.001 && t < n.start + n.duration - 0.001);
                         if (!active) c.classList.remove('active');
                     });
                 } else {
-                    // ÚJ HANG LÉTREHOZÁSA (Kezdetben 1 cella hosszú)
                     currentPRNote = {note: key.note, start: noteTime, duration: secPerStep, velocity: 100};
                     clip.patternData.notes.push(currentPRNote);
                     cell.classList.add('active');
                     
-                    // Hanglejátszás
                     if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
                     window.analogSynth.playNote(key.note, audioCtx.currentTime, 0.2, 100, trackOutput);
                 }
                 drawPattern(clip.querySelector('canvas'), clip, trackColor);
-            });
+            };
 
-            // --- 2. EGÉR HÚZÁSA (Hang elnyújtása jobbra) ---
+            // Érzékelők rákötése a cellára
+            cell.addEventListener('mousedown', startDraw);
+            cell.addEventListener('touchstart', startDraw, {passive: false});
+
+            // --- PC: EGÉR HÚZÁSA ---
             cell.addEventListener('mouseenter', () => {
                 if (isDrawingPR && currentPRNote && noteTime > currentPRNote.start) {
-                    // Megnyújtjuk az aktuális hang hosszát a memóriában!
                     currentPRNote.duration = (noteTime - currentPRNote.start) + secPerStep;
-                    
-                    // Vizuálisan bekapcsoljuk a cellát
                     cell.classList.add('active');
-                    
-                    // Újrarajzoljuk a kottát a sávon
                     drawPattern(clip.querySelector('canvas'), clip, trackColor);
                 }
             });
+            
+            // --- MOBIL: UJJ HÚZÁSA (Touchmove) ---
+            cell.addEventListener('touchmove', (e) => {
+                if (!isDrawingPR || !currentPRNote) return;
+                if (e.cancelable) e.preventDefault(); // Blokkolja az oldal görgetését, amíg rajzolsz!
+                
+                const touch = e.touches[0];
+                // Lekérdezzük, mi van PONTOSAN az ujjunk alatt
+                const targetCell = document.elementFromPoint(touch.clientX, touch.clientY);
+                
+                if (targetCell && targetCell.classList.contains('pr-cell')) {
+                    const cellTime = parseFloat(targetCell.dataset.time);
+                    const cellNote = parseInt(targetCell.dataset.note);
+                    
+                    // Csak akkor nyújtjuk, ha ugyanabban a sorban maradtunk, és jobbra húzzuk
+                    if (cellNote === currentPRNote.note && cellTime > currentPRNote.start) {
+                        currentPRNote.duration = (cellTime - currentPRNote.start) + secPerStep;
+                        targetCell.classList.add('active');
+                        drawPattern(clip.querySelector('canvas'), clip, trackColor);
+                    }
+                }
+            }, {passive: false});
             
             stepsContainer.appendChild(cell);
         }
