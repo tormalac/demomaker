@@ -2562,12 +2562,22 @@ function scheduleClips(offsetTime) {
                             if (parentTrack.classList.contains('synth')) {
                                 // SZINTETIZÁTOR LEJÁTSZÁSA
                                 if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
-                                // note.duration a hossza (alapból 0.25 sec, azaz egy tizenhatod)
-                                window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput);
+                                
+                                // Elkapjuk a generált oszcillátorokat!
+                                const nodes = window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput);
+                                
+                                // Betesszük őket a globális Stop-listába
+                                if (nodes) audioSources.push(...nodes);
+                                
                             } else {
                                 // DOBGÉP LEJÁTSZÁSA
                                 if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
-                                window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput);
+                                
+                                // Elkapjuk a generált hangokat!
+                                const nodes = window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput);
+                                
+                                // Betesszük őket a globális Stop-listába
+                                if (nodes) audioSources.push(...nodes);
                             }
                         }
                     });
