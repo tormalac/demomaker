@@ -1701,6 +1701,7 @@ function handleLocatorMove(clientX) {
 // --- KLIP KIJELÖLÉS, GÖRGETÉS ÉS MOZGATÁS ---
 // ==========================================================
 let isPanning = false;
+let hasMovedDuringPan = false;
 let panStartX = 0;
 let panStartY = 0;
 let panStartScroll = 0;
@@ -1727,7 +1728,7 @@ function handleClipInteraction(clientX, target, e) {
 
     // Ha az üres sávra kattintunk
     if (!clip) {
-        document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+        
         return false;
     }
 
@@ -1860,6 +1861,13 @@ function updateClipColor(clip, track) {
 
 // --- 5. BERAGADÁS ELLENI VÉDELEM (RESET) ---
 function resetAllInteractions() {
+    if (isPanning && !hasMovedDuringPan) {
+        document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+    }
+
+    isResizing = false;
+    resizeTarget = null;
+
     isResizing = false;
     resizeTarget = null;
     
@@ -1906,6 +1914,7 @@ document.addEventListener('mousedown', (e) => {
     if (e.target.closest('.track-area') || e.target.closest('.timeline-ruler')) {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
         isPanning = true;
+        hasMovedDuringPan = false;
         panStartX = e.clientX;
         panStartScroll = globalScrollX;
         document.body.style.cursor = 'grabbing';
@@ -1917,7 +1926,12 @@ document.addEventListener('mousemove', (e) => {
     if (isResizing) { handleResizeMove(e.clientX); return; }
     // ITT VAN A JAVÍTÁS: Átadjuk mindkét koordinátát!
     if (isDraggingClip) { e.preventDefault(); handleClipDragMove(e.clientX, e.clientY); return; }
-    if (isPanning) { e.preventDefault(); const walk = panStartX - e.clientX; setScroll(panStartScroll + walk); }
+    if (isPanning) { 
+        e.preventDefault(); 
+        const walk = panStartX - e.clientX; 
+        if (Math.abs(walk) > 3) hasMovedDuringPan = true; // <-- HA MOZOG 3 PIXELT, JELZÜNK
+        setScroll(panStartScroll + walk); 
+    }
 });
 
 document.addEventListener('mouseup', resetAllInteractions);
@@ -1930,6 +1944,7 @@ document.addEventListener('touchstart', (e) => {
     if (e.target.closest('.track-area') || e.target.closest('.timeline-ruler')) {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
         isPanning = true;
+        hasMovedDuringPan = false;
         panStartX = e.touches[0].clientX;
         panStartY = e.touches[0].clientY; 
         panStartScroll = globalScrollX;
@@ -1956,6 +1971,7 @@ document.addEventListener('touchmove', (e) => {
         }
 
         if (isPanDirectionLocked) {
+            hasMovedDuringPan = true;
             if (panDirection === 'horizontal') {
                 e.preventDefault(); 
                 const walk = panStartX - currentX; 
