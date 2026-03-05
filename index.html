@@ -211,7 +211,11 @@
     <div id="seq-modal" style="background: #111; border: 2px solid #3fa9f5; border-radius: 6px; width: 90%; max-width: 800px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #333;">
-            <h2 id="seq-title" style="margin: 0; font-family: var(--font-mono); font-size: 1.2rem; text-transform: uppercase;">Editor</h2>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h2 id="seq-title" style="margin: 0; font-family: var(--font-mono); font-size: 1.2rem; text-transform: uppercase;">Editor</h2>
+                <select id="preset-selector" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px 8px; font-family: var(--font-mono); border-radius: 3px; outline: none; cursor: pointer; display: none;">
+                </select>
+            </div>
             <button id="close-seq-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">×</button>
         </div>
         
