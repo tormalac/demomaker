@@ -259,13 +259,19 @@ document.head.appendChild(fxStyles);
 // ==========================================================
 
 // ==========================================================
-// --- SYNTH ENGINE: VIRTUAL ANALOG DRUM MACHINE ---
+// --- SYNTH ENGINE: VIRTUAL ANALOG DRUM MACHINE (MULTI-PRESET) ---
 // ==========================================================
 
 class AnalogDrumMachine {
     constructor(ctx) {
         this.ctx = ctx;
         this.noiseBuffer = this.createNoiseBuffer();
+        this.setPreset('TR-808 (Deep)'); // Alapértelmezett legenda!
+    }
+
+    // --- ÚJ: DOBGÉP VÁLASZTÓ MOTOR ---
+    setPreset(presetName) {
+        this.preset = presetName;
     }
 
     createNoiseBuffer() {
@@ -276,11 +282,12 @@ class AnalogDrumMachine {
         return buffer;
     }
 
-    playNote(midiNote, time, velocity = 100, destinationNode) {
+    playNote(midiNote, time, velocity = 100, destinationNode, presetName = null) {
+        if (presetName) this.setPreset(presetName);
+
         const vel = velocity / 127; 
         const dest = destinationNode || this.ctx.destination; 
         
-        // Visszaadjuk a generált csomópontokat a leállításhoz!
         if (midiNote === 36) return this.playKick(time, vel, dest);
         else if (midiNote === 38) return this.playSnare(time, vel, dest);
         else if (midiNote === 42) return this.playHiHat(time, vel, 0.05, dest); 
@@ -298,12 +305,34 @@ class AnalogDrumMachine {
         const gain = this.ctx.createGain();
         osc.connect(gain); gain.connect(dest); 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(150, time);
-        osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
-        gain.gain.setValueAtTime(velocity, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
-        osc.start(time); osc.stop(time + 0.5);
-        return [osc]; // <-- Begyűjtve
+
+        // --- STÍLUS FÜGGŐ LÁBDOB ---
+        if (this.preset === 'TR-808 (Deep)') {
+            // Hosszú, mély, szubos bumm
+            osc.frequency.setValueAtTime(120, time);
+            osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+            gain.gain.setValueAtTime(velocity, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8); // Nagyon hosszú lecsengés
+            osc.start(time); osc.stop(time + 0.9);
+        } 
+        else if (this.preset === 'TR-909 (Punchy)') {
+            // Rövid, nagyon agresszív kattanással induló lábdob
+            osc.frequency.setValueAtTime(250, time);
+            osc.frequency.exponentialRampToValueAtTime(50, time + 0.05);
+            gain.gain.setValueAtTime(velocity, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3); // Rövid, feszes
+            osc.start(time); osc.stop(time + 0.4);
+        }
+        else {
+            // Synthwave / Retro
+            osc.type = 'triangle'; // Kicsit "műanyagosabb"
+            osc.frequency.setValueAtTime(150, time);
+            osc.frequency.exponentialRampToValueAtTime(60, time + 0.1);
+            gain.gain.setValueAtTime(velocity, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+            osc.start(time); osc.stop(time + 0.5);
+        }
+        return [osc];
     }
 
     playSnare(time, velocity, dest) {
@@ -311,51 +340,96 @@ class AnalogDrumMachine {
         const oscGain = this.ctx.createGain();
         osc.type = 'triangle';
         osc.connect(oscGain); oscGain.connect(dest); 
-        osc.frequency.setValueAtTime(200, time);
-        oscGain.gain.setValueAtTime(velocity * 0.5, time);
-        oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
-        osc.start(time); osc.stop(time + 0.2);
 
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
         const noiseFilter = this.ctx.createBiquadFilter();
         const noiseGain = this.ctx.createGain();
-        noiseFilter.type = 'highpass'; noiseFilter.frequency.value = 1000;
         noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(dest); 
-        noiseGain.gain.setValueAtTime(velocity, time);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
-        noise.start(time); noise.stop(time + 0.3);
-        return [osc, noise]; // <-- Begyűjtve
+
+        // --- STÍLUS FÜGGŐ PERGŐ ---
+        if (this.preset === 'TR-808 (Deep)') {
+            // Vékony, pattanós (magasabb test)
+            osc.frequency.setValueAtTime(250, time);
+            oscGain.gain.setValueAtTime(velocity * 0.5, time);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+            noiseFilter.type = 'highpass'; noiseFilter.frequency.value = 2000;
+            noiseGain.gain.setValueAtTime(velocity * 0.8, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+            osc.start(time); osc.stop(time + 0.15);
+            noise.start(time); noise.stop(time + 0.25);
+        } 
+        else if (this.preset === 'TR-909 (Punchy)') {
+            // Vastag, zizegős, "csapkodós" pergő
+            osc.frequency.setValueAtTime(180, time);
+            oscGain.gain.setValueAtTime(velocity * 0.7, time);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+            noiseFilter.type = 'bandpass'; noiseFilter.frequency.value = 1500; noiseFilter.Q.value = 0.5;
+            noiseGain.gain.setValueAtTime(velocity, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.35); // Hosszabb zizegés
+            osc.start(time); osc.stop(time + 0.2);
+            noise.start(time); noise.stop(time + 0.4);
+        }
+        else {
+            // Synthwave (Lézeres hatás)
+            osc.frequency.setValueAtTime(400, time);
+            osc.frequency.exponentialRampToValueAtTime(100, time + 0.15); // Pew-pew effekt!
+            oscGain.gain.setValueAtTime(velocity * 0.6, time);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+            noiseFilter.type = 'highpass'; noiseFilter.frequency.value = 1000;
+            noiseGain.gain.setValueAtTime(velocity * 0.7, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+            osc.start(time); osc.stop(time + 0.25);
+            noise.start(time); noise.stop(time + 0.3);
+        }
+        return [osc, noise];
     }
 
     playHiHat(time, velocity, decay, dest) {
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
         const bandpass = this.ctx.createBiquadFilter();
-        bandpass.type = 'bandpass'; bandpass.frequency.value = 10000;
+        bandpass.type = 'bandpass'; 
         const highpass = this.ctx.createBiquadFilter();
-        highpass.type = 'highpass'; highpass.frequency.value = 7000;
+        highpass.type = 'highpass'; 
         const gain = this.ctx.createGain();
         noise.connect(bandpass); bandpass.connect(highpass); highpass.connect(gain); gain.connect(dest); 
+
+        // --- STÍLUS FÜGGŐ HI-HAT ---
+        if (this.preset === 'TR-808 (Deep)') {
+            bandpass.frequency.value = 10000; highpass.frequency.value = 7000;
+        } else if (this.preset === 'TR-909 (Punchy)') {
+            bandpass.frequency.value = 8000; highpass.frequency.value = 4000; // Kicsit vastagabb, fémesebb
+        } else {
+            bandpass.frequency.value = 12000; highpass.frequency.value = 8000; // Nagyon sziszegős retro
+        }
+
         gain.gain.setValueAtTime(velocity * 0.8, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
         noise.start(time); noise.stop(time + decay + 0.1);
-        return [noise]; // <-- Begyűjtve
+        return [noise];
     }
 
+    // A Tomok is megkapják a "Pew-Pew" effektet a Synthwave-hez!
     playTom(time, velocity, freq, dest) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain); gain.connect(dest);
-        osc.type = 'sine';
+        osc.type = this.preset === 'Synthwave' ? 'square' : 'sine'; // A retro műanyag tomnak négyszögjel áll jól!
+        
+        const endFreq = this.preset === 'Synthwave' ? freq * 0.1 : freq * 0.2; // Mélyebbre esik a hangja
+        const dropTime = this.preset === 'Synthwave' ? 0.15 : 0.3; // Gyorsabban esik a pitch
+
         osc.frequency.setValueAtTime(freq, time);
-        osc.frequency.exponentialRampToValueAtTime(freq * 0.2, time + 0.3);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, time + dropTime);
         gain.gain.setValueAtTime(velocity, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
         osc.start(time); osc.stop(time + 0.7);
-        return [osc]; // <-- Begyűjtve
+        return [osc];
     }
 
+    // A Crash és a Ride marad az eredeti "generikus" (azok nagyon jól szólnak), 
+    // de később azokat is lehet finomhangolni.
     playCrash(time, velocity, dest) {
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.noiseBuffer;
@@ -366,7 +440,7 @@ class AnalogDrumMachine {
         gain.gain.setValueAtTime(velocity, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 2.5);
         noise.start(time); noise.stop(time + 2.6);
-        return [noise]; // <-- Begyűjtve
+        return [noise];
     }
 
     playRide(time, velocity, dest) {
@@ -382,7 +456,7 @@ class AnalogDrumMachine {
             osc.frequency.setValueAtTime(f, time);
             osc.connect(gain);
             osc.start(time); osc.stop(time + 1.6);
-            nodes.push(osc); // <-- Begyűjtve
+            nodes.push(osc);
         });
 
         const noise = this.ctx.createBufferSource();
@@ -394,8 +468,7 @@ class AnalogDrumMachine {
         noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 1.0);
         noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(dest);
         noise.start(time); noise.stop(time + 1.1);
-        nodes.push(noise); // <-- Begyűjtve
-        
+        nodes.push(noise); 
         return nodes;
     }
 }
