@@ -574,6 +574,21 @@ function openDrumEditor(clip) {
     seqModal.style.borderColor = '#3fa9f5';
     title.style.color = '#3fa9f5';
     title.textContent = clip.querySelector('.clip-name').textContent + ' - EDITOR';
+
+    // --- ÚJ: DOB PRESET VÁLASZTÓ ---
+    const trackContainer = clip.closest('.track-container');
+    const presetSelector = document.getElementById('preset-selector');
+    presetSelector.style.display = 'block';
+    presetSelector.innerHTML = `
+        <option value="TR-808 (Deep)">TR-808 (Deep)</option>
+        <option value="TR-909 (Punchy)">TR-909 (Punchy)</option>
+        <option value="Synthwave">Retro Synthwave</option>
+    `;
+    // Betöltjük a mentett hangot, vagy adunk egy alapértelmezettet
+    presetSelector.value = trackContainer.dataset.preset || 'TR-808 (Deep)';
+    presetSelector.onchange = (e) => { 
+        trackContainer.dataset.preset = e.target.value; 
+    };
     
     const instruments = [
         { id: 'cr', name: 'Crash', note: 49 },
@@ -646,7 +661,7 @@ function openDrumEditor(clip) {
                     
                     if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
-                    window.analogDrums.playNote(inst.note, audioCtx.currentTime, 100, trackOutput);
+                    window.analogDrums.playNote(inst.note, audioCtx.currentTime, 100, trackOutput, trackContainer.dataset.preset);
                 }
                 
                 const color = clip.closest('.track-container').classList.contains('drum') ? '#3fa9f5' : '#b084f7';
@@ -684,6 +699,19 @@ function openPianoRoll(clip) {
     seqModal.style.borderColor = trackColor;
     title.style.color = trackColor;
     title.textContent = clip.querySelector('.clip-name').textContent + ' - PIANO ROLL';
+
+    // --- ÚJ: SZINTI PRESET VÁLASZTÓ ---
+    const presetSelector = document.getElementById('preset-selector');
+    presetSelector.style.display = 'block';
+    presetSelector.innerHTML = `
+        <option value="Classic Saw">Classic Saw</option>
+        <option value="Deep Bass">Deep Bass</option>
+        <option value="8-Bit Square">8-Bit Square</option>
+    `;
+    presetSelector.value = trackContainer.dataset.preset || 'Classic Saw';
+    presetSelector.onchange = (e) => { 
+        trackContainer.dataset.preset = e.target.value; 
+    };
     
     // Legenerálunk 2 oktávnyi billentyűt (B4-től lefelé C3-ig)
     const notes = [];
@@ -784,7 +812,7 @@ function openPianoRoll(clip) {
                     
                     if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
-                    window.analogSynth.playNote(key.note, audioCtx.currentTime, 0.2, 100, trackOutput);
+                    window.analogSynth.playNote(key.note, audioCtx.currentTime, 0.2, 100, trackOutput, trackContainer.dataset.preset);
                 }
                 drawPattern(clip.querySelector('canvas'), clip, trackColor);
             };
@@ -2586,31 +2614,31 @@ function scheduleClips(offsetTime) {
            // --- 2. PATTERN (MIDI) KLIP LEJÁTSZÁSA ---
             else {
                 if (clipDiv.patternData && clipDiv.patternData.notes) {
+                    // Lekérjük a sávhoz mentett presetet!
+                    const savedPreset = parentTrack.dataset.preset || null;
+
                     clipDiv.patternData.notes.forEach(note => {
                         const noteAbsoluteTime = clipStartTimeline + note.start - trimOffset;
                         
                         if (noteAbsoluteTime >= offsetTime && noteAbsoluteTime < clipEndTimeline) {
                             const whenToStart = noteAbsoluteTime - offsetTime;
                             
-                            // MEGNÉZZÜK, MILYEN SÁVON VAGYUNK!
-                            if (parentTrack.classList.contains('synth')) {
+                            if (parentTrack.classList.contains('synth') || parentTrack.classList.contains('bass')) {
                                 // SZINTETIZÁTOR LEJÁTSZÁSA
                                 if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
                                 
-                                // Elkapjuk a generált oszcillátorokat!
-                                const nodes = window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput);
+                                // ÁTADJUK A PRESETET IS!
+                                const nodes = window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput, savedPreset);
                                 
-                                // Betesszük őket a globális Stop-listába
                                 if (nodes) audioSources.push(...nodes);
                                 
                             } else {
                                 // DOBGÉP LEJÁTSZÁSA
                                 if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
                                 
-                                // Elkapjuk a generált hangokat!
-                                const nodes = window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput);
+                                // ÁTADJUK A PRESETET IS!
+                                const nodes = window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput, savedPreset);
                                 
-                                // Betesszük őket a globális Stop-listába
                                 if (nodes) audioSources.push(...nodes);
                             }
                         }
@@ -2868,3 +2896,14 @@ document.addEventListener('keydown', (e) => {
 // Alapállapot beállítása az induláskor
 createTrack('guitar');
 updateMeters();
+
+// ==========================================================
+// --- BÖNGÉSZŐ BEZÁRÁS / FRISSÍTÉS VÉDELEM ---
+// ==========================================================
+window.addEventListener('beforeunload', (e) => {
+    const hasTracks = document.querySelectorAll('.track-container').length > 0;
+    if (hasTracks) {
+        e.preventDefault();
+        e.returnValue = ''; // A modern böngészők ezt kérik a figyelmeztetéshez
+    }
+});
