@@ -2280,6 +2280,17 @@ function renderFxList(track) {
         // --- KLIKK ESEMÉNYEK (Megnyitás / Törlés) ---
         slot.onclick = (e) => {
             if (e.target.tagName === 'SPAN' && e.target.textContent === '×') {
+
+                const pluginToRemove = track.fxChain[index];
+                if (pluginToRemove && pluginToRemove.instance.output) {
+                    // Kihúzzuk a plugin kimenetét a láncból
+                    pluginToRemove.instance.output.disconnect();
+                    // Ha van LFO-ja (pl. kórus, flanger), azt is illik leállítani a memóriaszivárgás ellen
+                    if (pluginToRemove.instance.lfo) {
+                        try { pluginToRemove.instance.lfo.stop(); } catch(e) {}
+                    }
+                }
+
                 track.fxChain.splice(index, 1);
                 rebuildFxRouting(track);
                 fxArea.innerHTML = '<div style="color:#555; font-family:var(--font-mono); font-size: 0.9rem;">Select or Add a plugin...</div>';
