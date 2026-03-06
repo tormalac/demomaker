@@ -191,7 +191,7 @@ function drawPattern(canvas, clip, color) {
                 
                 ctx.fillStyle = color;
                 // Itt nem hagyunk rést a sorok között, egybefüggő téglákat rajzolunk
-                ctx.fillRect(x, y, w, rowHeight);
+                ctx.fillRect(x, y + 1, w - 1, rowHeight - 2);
             });
         }
     } else {
@@ -792,7 +792,10 @@ function openPianoRoll(clip) {
             const noteTime = i * secPerStep;
             
             const isActive = clip.patternData.notes.some(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
+            const isStart = clip.patternData.notes.some(n => n.note === key.note && Math.abs(noteTime - n.start) < 0.001);
+
             if (isActive) cell.classList.add('active');
+            if (isStart) cell.classList.add('note-start');
             
             // --- KÖZÖS INDÍTÓ FÜGGVÉNY (Egér és Mobil) ---
             const startDraw = (e) => {
@@ -806,12 +809,19 @@ function openPianoRoll(clip) {
                     Array.from(stepsContainer.children).forEach((c, idx) => {
                         const t = idx * secPerStep;
                         const active = clip.patternData.notes.some(n => n.note === key.note && t >= n.start - 0.001 && t < n.start + n.duration - 0.001);
-                        if (!active) c.classList.remove('active');
+                        const start = clip.patternData.notes.some(n => n.note === key.note && Math.abs(t - n.start) < 0.001);
+                        
+                        if (!active) {
+                            c.classList.remove('active', 'note-start'); // Tisztítás
+                        } else {
+                            if (start) c.classList.add('note-start');
+                            else c.classList.remove('note-start');
+                        }
                     });
                 } else {
                     currentPRNote = {note: key.note, start: noteTime, duration: secPerStep, velocity: 100};
                     clip.patternData.notes.push(currentPRNote);
-                    cell.classList.add('active');
+                    cell.classList.add('active', 'note-start'); // Az új blokk mindig kezdet!
                     
                     if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
