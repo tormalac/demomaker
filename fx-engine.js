@@ -1586,13 +1586,19 @@ class QTronFilter {
 
         this.setDrive(50);
         this.setQ(50);
+        this.setMode(100);
     }
 
     setDrive(val) { this.sensitivity = val / 100; }
     setQ(val) { this.filter.Q.value = 2 + (val / 100) * 18; } // Q = 2 - 20
     setMode(val) { 
-        // Választható Lowpass vagy Bandpass (valami egyszerű switch-ként a UI-on)
-        this.filter.type = val > 50 ? 'bandpass' : 'lowpass'; 
+        const isBandpass = val > 50;
+        this.filter.type = isBandpass ? 'bandpass' : 'lowpass'; 
+        
+        // --- MAKEUP GAIN (HANGERŐ KOMPENZÁCIÓ) ---
+        // A Bandpass rengeteg energiát levág, így kb. 3.5-szörös (+11dB) erősítés kell neki.
+        // A Lowpass csak a magasakat vágja, ott elég a 1.5-szörös (+3.5dB) erősítés.
+        this.output.gain.value = isBandpass ? 3.5 : 1.5; 
     }
 }
 
