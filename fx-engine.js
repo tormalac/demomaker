@@ -250,6 +250,85 @@ fxStyles.innerHTML = `
     .plugin-djent .knob-value { color: #f00; font-weight: bold;}
     .knob.amp-black { background: radial-gradient(circle at 50% 10%, #444, #000); border: 1px solid #555; width: 42px; height: 42px; box-shadow: 0 5px 10px rgba(0,0,0,1);}
     .knob.amp-black::after { background: #f00; width: 2px; height: 14px;}
+
+/* --- DBX 160 UI (Punch Comp) --- */
+    .plugin-dbx {
+        background: #111; border: 2px solid #333; border-radius: 4px; border-top: 15px solid #000;
+        width: 100%; max-width: 400px; padding: 25px 20px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .dbx-header { text-align: center; color: #fff; font-family: 'Arial Black', sans-serif; font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 20px;}
+    .dbx-header span { color: #d00; font-size: 1rem; vertical-align: super;}
+    .plugin-dbx .knob-label { color: #ccc; }
+    .plugin-dbx .knob-value { color: #fff; font-family: var(--font-mono); }
+    .knob.dbx-knob { background: #222; border: 1px solid #555; width: 45px; height: 45px; }
+
+    /* --- SSL G BUS COMP UI --- */
+    .plugin-ssl {
+        background: #2b2e33; border: 2px solid #1a1c1f; border-radius: 2px;
+        width: 100%; max-width: 550px; padding: 20px;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .ssl-header { text-align: center; color: #e0e0e0; font-family: Arial, sans-serif; font-weight: bold; font-size: 1.2rem; letter-spacing: 1px; margin-bottom: 25px; border-bottom: 1px solid #111; padding-bottom: 10px;}
+    .plugin-ssl .knob-label { color: #b0b0b0; font-size: 8px;}
+    .plugin-ssl .knob-value { color: #fff; }
+    .knob.ssl-blue { background: #254b73; border: 2px solid #111; width: 40px; height: 40px;}
+    .knob.ssl-red { background: #8a2525; border: 2px solid #111; width: 40px; height: 40px;}
+    .knob.ssl-grey { background: #555; border: 2px solid #111; width: 40px; height: 40px;}
+
+    /* --- ROLAND RE-201 SPACE ECHO UI --- */
+    .plugin-re201 {
+        background: #1a1a1a; border: 2px solid #000; border-radius: 4px;
+        width: 100%; max-width: 550px; padding: 20px;
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.9), 0 10px 30px rgba(0,0,0,0.7);
+        border-bottom: 15px solid #111;
+    }
+    .re201-header { text-align: left; color: #00ff66; font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 1.4rem; letter-spacing: 1px; margin-bottom: 25px;}
+    .re201-header span { color: #ccc; font-size: 0.8rem; letter-spacing: 3px; display: block; margin-top: 5px;}
+    .plugin-re201 .knob-label { color: #00ff66; font-family: 'Courier New', Courier, monospace; font-weight: normal;}
+    .plugin-re201 .knob-value { color: #fff; }
+    .knob.re-knob { background: radial-gradient(circle at 50% 50%, #333, #000); border: 1px solid #444; width: 50px; height: 50px; }
+    .knob.re-knob::after { background: #00ff66; width: 3px; height: 10px; top: 8px;}
+   
+    /* --- LEXICON 224 REVERB UI --- */
+    .plugin-lexicon {
+        background: #e6e4dc; border: 2px solid #ccc; border-radius: 4px;
+        width: 100%; max-width: 500px; padding: 25px 20px;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .lexicon-header { text-align: left; color: #111; font-family: 'Arial', sans-serif; font-weight: 900; font-size: 1.6rem; letter-spacing: -1px; margin-bottom: 25px; border-bottom: 2px solid #111; padding-bottom: 5px;}
+    .lexicon-header span { font-size: 0.9rem; font-weight: normal; margin-left: 10px; letter-spacing: 1px;}
+    .plugin-lexicon .knob-label { color: #333; font-weight: bold;}
+    .plugin-lexicon .knob-value { color: #111; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 2px;}
+    .knob.lex-knob { background: #f4f4f4; border: 1px solid #aaa; width: 45px; height: 45px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);}
+    .knob.lex-knob::after { background: #222; width: 3px; height: 12px;}
+
+    /* --- JUNO-60 CHORUS UI --- */
+    .plugin-juno {
+        background: #111; border: 2px solid #222; border-top: 10px solid #222; border-bottom: 10px solid #222;
+        width: 100%; max-width: 450px; padding: 20px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.7);
+        position: relative;
+    }
+    .plugin-juno::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #d00, #ff8c00, #ffd93d, #00ffd5, #3fa9f5); }
+    .juno-header { text-align: right; color: #fff; font-family: 'Arial Black', sans-serif; font-size: 1.2rem; letter-spacing: 2px; margin-bottom: 25px;}
+    .plugin-juno .knob-label { color: #ccc; }
+    .plugin-juno .knob-value { color: #00ffd5; }
+    .knob.juno-knob { background: #1a1a1a; border: 1px solid #333; width: 40px; height: 40px; }
+    .knob.juno-knob::after { background: #fff; width: 2px; height: 10px;}
+
+    /* --- MXR PHASE 90 UI --- */
+    .plugin-mxr {
+        background: #f05a28; border: 2px solid #c03a08; border-radius: 8px;
+        width: 100%; max-width: 250px; padding: 40px 20px;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.2), 0 10px 30px rgba(0,0,0,0.7);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .mxr-header { text-align: center; color: #111; font-family: 'Brush Script MT', cursive, sans-serif; font-size: 2.5rem; margin-bottom: 30px; transform: rotate(-3deg);}
+    .plugin-mxr .knob-label { color: #111; font-size: 14px;}
+    .plugin-mxr .knob-value { color: #fff; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px; margin-bottom: 10px;}
+    .knob.mxr-knob { background: #111; border: 2px solid #222; width: 70px; height: 70px; }
+    .knob.mxr-knob::after { background: #fff; width: 4px; height: 15px; top: 5px;}
     
 `;
 document.head.appendChild(fxStyles);
@@ -888,6 +967,320 @@ class BrickwallMaximizer {
     }
 }
 
+// --- 7. DBX 160 Punch Compressor ---
+class DBX160Compressor {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.comp = ctx.createDynamicsCompressor();
+        this.comp.knee.value = 0; // Hard knee a klasszikus csattanásért
+        this.comp.attack.value = 0.005; // Nagyon gyors (5ms)
+        this.comp.release.value = 0.05; // Gyors felengedés (50ms)
+        
+        this.makeup = ctx.createGain();
+
+        this.input.connect(this.comp);
+        this.comp.connect(this.makeup);
+        this.makeup.connect(this.output);
+    }
+    setThreshold(val) { this.comp.threshold.value = val; }
+    setRatio(val) { this.comp.ratio.value = val; }
+    setOutput(val) { this.makeup.gain.value = Math.pow(10, val / 20); }
+}
+
+// --- 8. SSL G-Master Buss Compressor ---
+class SSLBusCompressor {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.comp = ctx.createDynamicsCompressor();
+        this.comp.knee.value = 5; // Kicsit lágyabb, zeneibb
+        
+        this.makeup = ctx.createGain();
+
+        this.input.connect(this.comp);
+        this.comp.connect(this.makeup);
+        this.makeup.connect(this.output);
+        
+        // Alap beállítások
+        this.setAttack(30);
+        this.setRelease(300);
+        this.setRatio(4);
+    }
+    setThreshold(val) { this.comp.threshold.value = val; }
+    setMakeup(val) { this.makeup.gain.value = Math.pow(10, val / 20); }
+    setAttack(val) { this.comp.attack.value = val / 1000; } // ms to sec
+    setRelease(val) { this.comp.release.value = val / 1000; } // ms to sec
+    setRatio(val) { this.comp.ratio.value = val; }
+}
+
+// --- 9. Roland RE-201 Space Echo ---
+class SpaceEchoDelay {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // Dry/Wet arányhoz
+        this.dryGain = ctx.createGain();
+        this.wetGain = ctx.createGain();
+        
+        // Maga a szalag emuláció (Delay + Szaturáció + EQ)
+        this.delay = ctx.createDelay(5.0); // Max 5 mp
+        this.feedback = ctx.createGain();
+        
+        // Szalag EQ
+        this.tapeLpf = ctx.createBiquadFilter();
+        this.tapeLpf.type = 'lowpass';
+        this.tapeLpf.frequency.value = 3500; // Tompa szalagos hang
+        this.tapeHpf = ctx.createBiquadFilter();
+        this.tapeHpf.type = 'highpass';
+        this.tapeHpf.frequency.value = 200;
+
+        // Szaturáció a delay láncban (hogy minden ismétlés koszosabb legyen)
+        this.tapeSat = ctx.createWaveShaper();
+        this.tapeSat.curve = this.makeSaturationCurve(20);
+
+        // Routing
+        this.input.connect(this.dryGain);
+        this.dryGain.connect(this.output);
+
+        this.input.connect(this.delay);
+        this.delay.connect(this.tapeLpf);
+        this.tapeLpf.connect(this.tapeHpf);
+        this.tapeHpf.connect(this.tapeSat);
+        this.tapeSat.connect(this.wetGain);
+        this.wetGain.connect(this.output);
+
+        // Feedback hurok (A szaturált/EQ-zott jel megy vissza a delay-be)
+        this.tapeSat.connect(this.feedback);
+        this.feedback.connect(this.delay);
+
+        // Alapértékek
+        this.setRate(300);
+        this.setIntensity(40);
+        this.setMix(30);
+    }
+    
+    makeSaturationCurve(amount) {
+        let k = amount;
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            curve[i] = Math.tanh(x * (1 + k / 10)); 
+        }
+        return curve;
+    }
+
+    setRate(val) { this.delay.delayTime.value = val / 1000; } // ms to sec
+    setIntensity(val) { this.feedback.gain.value = val / 100; } // 0 - 1.0 feedback
+    setMix(val) { 
+        this.wetGain.gain.value = val / 100; 
+        this.dryGain.gain.value = 1 - (val / 100); 
+    }
+    setBass(val) { this.tapeHpf.frequency.value = 200 - (val * 1.5); } // 0-100 érték
+    setTreble(val) { this.tapeLpf.frequency.value = 1000 + (val * 50); } // 0-100 érték
+}
+
+// --- 10. Lexicon 224 Digital Reverb (Algoritmikus) ---
+class LexiconReverb {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.dryGain = ctx.createGain();
+        this.wetGain = ctx.createGain();
+
+        // ConvolverNode szintetikus IR (Impulse Response) generálással
+        this.convolver = ctx.createConvolver();
+        
+        // Magas és mélyvágó a zengésen (hogy ne zengjen össze mindent)
+        this.lowpass = ctx.createBiquadFilter();
+        this.lowpass.type = 'lowpass';
+        this.lowpass.frequency.value = 4000;
+        
+        this.highpass = ctx.createBiquadFilter();
+        this.highpass.type = 'highpass';
+        this.highpass.frequency.value = 300;
+
+        this.input.connect(this.dryGain);
+        this.dryGain.connect(this.output);
+
+        this.input.connect(this.highpass);
+        this.highpass.connect(this.lowpass);
+        this.lowpass.connect(this.convolver);
+        this.convolver.connect(this.wetGain);
+        this.wetGain.connect(this.output);
+
+        // Alap beállítás generálása
+        this.generateReverb(3.0, 2.0); // 3mp hosszú, normál csengés
+        this.setMix(25); // 25% wet
+    }
+
+    generateReverb(duration, decay) {
+        const sampleRate = this.ctx.sampleRate;
+        const length = sampleRate * duration;
+        const impulse = this.ctx.createBuffer(2, length, sampleRate);
+        const left = impulse.getChannelData(0);
+        const right = impulse.getChannelData(1);
+
+        for (let i = 0; i < length; i++) {
+            // Exponenciális lecsengésű zaj generálása
+            const envelope = Math.pow(1 - i / length, decay);
+            left[i] = (Math.random() * 2 - 1) * envelope;
+            right[i] = (Math.random() * 2 - 1) * envelope;
+        }
+        this.convolver.buffer = impulse;
+    }
+
+    setTime(val) { 
+        // 0-100 értékből csinálunk 0.5 - 6.0 másodpercet
+        const timeSec = 0.5 + (val / 100) * 5.5;
+        this.generateReverb(timeSec, 2.0); 
+    }
+    
+    setDamping(val) {
+        // Magasvágás (Minél nagyobb a damping, annál lejjebb vág)
+        this.lowpass.frequency.value = 10000 - (val * 80); 
+    }
+
+    setMix(val) { 
+        this.wetGain.gain.value = val / 100; 
+        this.dryGain.gain.value = 1 - (val / 100); 
+    }
+}
+
+// --- 11. Roland Juno-60 Analóg Chorus ---
+class JunoChorus {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.dryGain = ctx.createGain();
+        this.wetGain = ctx.createGain();
+
+        // Két késleltető vonal a széles sztereó képhez
+        this.delayL = ctx.createDelay();
+        this.delayR = ctx.createDelay();
+        this.delayL.delayTime.value = 0.015; // 15ms alap késleltetés
+        this.delayR.delayTime.value = 0.020; // 20ms alap késleltetés
+
+        // LFO a lebegéshez
+        this.lfo = ctx.createOscillator();
+        this.lfo.type = 'sine';
+        
+        this.lfoGainL = ctx.createGain();
+        this.lfoGainR = ctx.createGain();
+        
+        // LFO bekötése a késleltetési idő rángatására
+        this.lfo.connect(this.lfoGainL);
+        this.lfoGainL.connect(this.delayL.delayTime);
+        
+        // Invertáljuk az LFO fázisát a jobb oldalon a sztereó hatásért
+        this.lfo.connect(this.lfoGainR);
+        this.lfoGainR.gain.value = -1;
+        this.lfoGainR.connect(this.delayR.delayTime);
+        
+        // Panner a jobb-bal szétválasztáshoz
+        this.panL = ctx.createStereoPanner(); this.panL.pan.value = -1;
+        this.panR = ctx.createStereoPanner(); this.panR.pan.value = 1;
+
+        this.input.connect(this.dryGain);
+        this.dryGain.connect(this.output);
+
+        this.input.connect(this.delayL); this.delayL.connect(this.panL); this.panL.connect(this.wetGain);
+        this.input.connect(this.delayR); this.delayR.connect(this.panR); this.panR.connect(this.wetGain);
+        
+        this.wetGain.connect(this.output);
+        this.lfo.start();
+
+        // Alapértelmezések (Juno "Mode I" stílus)
+        this.setRate(30);
+        this.setDepth(50);
+        this.setMix(50);
+    }
+
+    setRate(val) { 
+        // 0-100 értékből 0.1Hz - 5Hz sebesség
+        this.lfo.frequency.value = 0.1 + (val / 100) * 4.9; 
+    }
+    setDepth(val) { 
+        // LFO mélység (max 5ms moduláció)
+        const depthSec = (val / 100) * 0.005;
+        this.lfoGainL.gain.value = depthSec;
+    }
+    setMix(val) { 
+        this.wetGain.gain.value = val / 100; 
+        this.dryGain.gain.value = 1 - (val / 100); 
+    }
+}
+
+// --- 12. MXR Phase 90 (4 fokozatú Allpass) ---
+class MXRPhaser {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.dryGain = ctx.createGain();
+        this.wetGain = ctx.createGain();
+        
+        // 4 darab Allpass szűrő sorbakötve (ez okozza a fáziseltolódást)
+        this.filters = [];
+        let prevNode = this.input;
+        
+        for (let i = 0; i < 4; i++) {
+            let filter = ctx.createBiquadFilter();
+            filter.type = 'allpass';
+            filter.frequency.value = 1000;
+            prevNode.connect(filter);
+            this.filters.push(filter);
+            prevNode = filter;
+        }
+        
+        // A 4. szűrő után megy a nedves jelbe
+        prevNode.connect(this.wetGain);
+
+        // LFO a szűrők frekvenciájának mozgatására
+        this.lfo = ctx.createOscillator();
+        this.lfo.type = 'sine';
+        
+        this.lfoGain = ctx.createGain();
+        this.lfoGain.gain.value = 800; // Moduláció mélysége Hz-ben
+        
+        this.lfo.connect(this.lfoGain);
+        
+        // Bekötjük az LFO-t mind a 4 szűrő frekvenciájára
+        this.filters.forEach(f => {
+            this.lfoGain.connect(f.frequency);
+        });
+
+        this.input.connect(this.dryGain);
+        this.dryGain.connect(this.output);
+        this.wetGain.connect(this.output);
+        
+        this.lfo.start();
+
+        // 50-50% mix a fáziskioltásért
+        this.dryGain.gain.value = 0.5;
+        this.wetGain.gain.value = 0.5;
+
+        this.setSpeed(30);
+    }
+
+    setSpeed(val) { 
+        // 0-100 értékből 0.1Hz - 8Hz sebesség (Az eredetin csak egyetlen "Speed" poti van!)
+        this.lfo.frequency.value = 0.1 + (val / 100) * 7.9; 
+    }
+}
+
 
 // ==========================================================
 // --- UI GENERÁTOROK ---
@@ -1042,6 +1435,107 @@ function createMaximizerUI(pluginInstance) {
     return wrapper;
 }
 
+// --- DBX 160 UI ---
+function createDBXUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-dbx';
+    wrapper.innerHTML = `
+        <div class="dbx-header">dbx<span>®</span> 160</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob dbx-knob" data-param="threshold" data-min="-40" data-max="10" data-val="0"></div><div class="knob-value">0 dB</div><div class="knob-label">THRESHOLD</div></div>
+            <div class="knob-container"><div class="knob dbx-knob" data-param="ratio" data-min="1" data-max="20" data-val="4"></div><div class="knob-value">4:1</div><div class="knob-label">COMPRESSION</div></div>
+            <div class="knob-container"><div class="knob dbx-knob" data-param="output" data-min="-20" data-max="20" data-val="0"></div><div class="knob-value">0 dB</div><div class="knob-label">OUTPUT GAIN</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'nv73'); // Használhatjuk az nv73 decibel/normál logikáját
+    return wrapper;
+}
+
+// --- SSL BUS COMP UI ---
+function createSSLUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-ssl';
+    wrapper.innerHTML = `
+        <div class="ssl-header">G-MASTER BUSS COMPRESSOR</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob ssl-blue" data-param="threshold" data-min="-20" data-max="15" data-val="0"></div><div class="knob-value">0</div><div class="knob-label">THRESHOLD</div></div>
+            <div class="knob-container"><div class="knob ssl-grey" data-param="ratio" data-min="2" data-max="10" data-val="4" data-step="true" data-steps="2,4,10"></div><div class="knob-value">4</div><div class="knob-label">RATIO</div></div>
+            <div class="knob-container"><div class="knob ssl-grey" data-param="attack" data-min="0.1" data-max="30" data-val="10" data-step="true" data-steps="0.1,0.3,1,3,10,30"></div><div class="knob-value">10</div><div class="knob-label">ATTACK (mS)</div></div>
+            <div class="knob-container"><div class="knob ssl-grey" data-param="release" data-min="100" data-max="1200" data-val="300" data-step="true" data-steps="100,300,600,1200"></div><div class="knob-value">300</div><div class="knob-label">RELEASE (mS)</div></div>
+            <div class="knob-container"><div class="knob ssl-red" data-param="makeup" data-min="0" data-max="15" data-val="0"></div><div class="knob-value">0</div><div class="knob-label">MAKE-UP</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'nv73'); 
+    return wrapper;
+}
+
+// --- SPACE ECHO UI ---
+function createSpaceEchoUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-re201';
+    wrapper.innerHTML = `
+        <div class="re201-header">SPACE ECHO<span>RE-201</span></div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob re-knob" data-param="rate" data-min="50" data-max="1000" data-val="300"></div><div class="knob-value">300</div><div class="knob-label">REPEAT RATE</div></div>
+            <div class="knob-container"><div class="knob re-knob" data-param="intensity" data-min="0" data-max="95" data-val="40"></div><div class="knob-value">40</div><div class="knob-label">INTENSITY</div></div>
+            <div class="knob-container"><div class="knob re-knob" data-param="bass" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">BASS</div></div>
+            <div class="knob-container"><div class="knob re-knob" data-param="treble" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">TREBLE</div></div>
+            <div class="knob-container"><div class="knob re-knob" data-param="mix" data-min="0" data-max="100" data-val="30"></div><div class="knob-value">30</div><div class="knob-label">ECHO VOL</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp'); // A potik tekerési logikájához az "amp" (0-100) típus tökéletes
+    return wrapper;
+}
+
+// --- LEXICON 224 UI ---
+function createLexiconUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-lexicon';
+    wrapper.innerHTML = `
+        <div class="lexicon-header">224 <span>DIGITAL REVERBERATOR</span></div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob lex-knob" data-param="time" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">DECAY TIME</div></div>
+            <div class="knob-container"><div class="knob lex-knob" data-param="damping" data-min="0" data-max="100" data-val="20"></div><div class="knob-value">20</div><div class="knob-label">DAMPING</div></div>
+            <div class="knob-container"><div class="knob lex-knob" data-param="mix" data-min="0" data-max="100" data-val="25"></div><div class="knob-value">25</div><div class="knob-label">MIX</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
+// --- JUNO CHORUS UI ---
+function createJunoUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-juno';
+    wrapper.innerHTML = `
+        <div class="juno-header">CHORUS-60</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob juno-knob" data-param="rate" data-min="0" data-max="100" data-val="30"></div><div class="knob-value">30</div><div class="knob-label">RATE</div></div>
+            <div class="knob-container"><div class="knob juno-knob" data-param="depth" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">DEPTH</div></div>
+            <div class="knob-container"><div class="knob juno-knob" data-param="mix" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">WET/DRY</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
+// --- MXR PHASE 90 UI ---
+function createMXRUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-mxr';
+    wrapper.innerHTML = `
+        <div class="mxr-header">Phase 90</div>
+        <div class="knob-container">
+            <div class="knob mxr-knob" data-param="speed" data-min="0" data-max="100" data-val="30"></div>
+            <div class="knob-value">30</div>
+            <div class="knob-label">SPEED</div>
+        </div>
+    `;
+    // Mivel az MXR-en csak egyetlen "Speed" poti van paraméterként, használhatunk itt is egy egyedi setup-ot
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
 // --- KÖZÖS POTMÉTER LOGIKA ---
 function setupKnobs(wrapper, pluginInstance, type) {
     const knobs = wrapper.querySelectorAll('.knob');
@@ -1167,9 +1661,15 @@ const modalHTML = `
                         <div id="plugin-picker">
                             <button class="plugin-pick-btn" data-plugin="nv73">N-73 Preamp & EQ</button>
                             <button class="plugin-pick-btn" data-plugin="la2a">L-2A Leveler</button>
+                            <button class="plugin-pick-btn" data-plugin="dbx">dbx 160 Punch Comp</button>                            
                             <button class="plugin-pick-btn" data-plugin="brit">Brit 800 Amp</button>
                             <button class="plugin-pick-btn" data-plugin="djent">Djent 51 Amp</button>
+                            <button class="plugin-pick-btn" data-plugin="juno">Juno-60 Chorus</button>
+                            <button class="plugin-pick-btn" data-plugin="mxr">Phase 90</button>
+                            <button class="plugin-pick-btn" data-plugin="lexicon">224 Digital Reverb</button>
+                            <button class="plugin-pick-btn" data-plugin="spaceecho">RE-201 Space Echo</button>
                             <button class="plugin-pick-btn" data-plugin="tape">Vintage Tape Sat</button>
+                            <button class="plugin-pick-btn" data-plugin="ssl">SSL Master Bus Comp</button>
                             <button class="plugin-pick-btn" data-plugin="maximizer">L-MAX Brickwall</button>
                         </div>
                     </div>
@@ -1263,6 +1763,18 @@ document.addEventListener('click', (e) => {
             plugin = new NV73Preamp(audioCtx); ui = createNV73UI(plugin); name = 'N-73 Preamp';
         } else if (pluginType === 'la2a') {
             plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'LA-2A Leveler';
+        } else if (pluginType === 'dbx') { // ÚJ
+            plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'dbx 160';
+        } else if (pluginType === 'ssl') { // ÚJ
+            plugin = new SSLBusCompressor(audioCtx); ui = createSSLUI(plugin); name = 'SSL G-Bus';
+        } else if (pluginType === 'spaceecho') {
+            plugin = new SpaceEchoDelay(audioCtx); ui = createSpaceEchoUI(plugin); name = 'Space Echo';
+        } else if (pluginType === 'lexicon') { // ÚJ
+            plugin = new LexiconReverb(audioCtx); ui = createLexiconUI(plugin); name = '224 Reverb';
+        } else if (pluginType === 'juno') { // ÚJ
+            plugin = new JunoChorus(audioCtx); ui = createJunoUI(plugin); name = 'Juno Chorus';
+        } else if (pluginType === 'mxr') { // ÚJ
+            plugin = new MXRPhaser(audioCtx); ui = createMXRUI(plugin); name = 'Phase 90';
         } else if (pluginType === 'tape') {
             plugin = new TapeSaturator(audioCtx); ui = createTapeUI(plugin); name = 'Vintage Tape';
         } else if (pluginType === 'brit') {
