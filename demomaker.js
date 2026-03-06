@@ -709,6 +709,9 @@ function openPianoRoll(clip) {
         <option value="8-Bit Square">8-Bit Square</option>
     `;
     presetSelector.value = trackContainer.dataset.preset || 'Classic Saw';
+
+    if (!trackContainer.dataset.preset) trackContainer.dataset.preset = presetSelector.value;
+    
     presetSelector.onchange = (e) => { 
         trackContainer.dataset.preset = e.target.value; 
     };
