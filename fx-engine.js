@@ -1562,9 +1562,13 @@ class QTronFilter {
 
             // Új frekvencia beállítása (Sweep)
             let targetFreq = this.baseFreq + (driveLvl * (this.peakFreq - this.baseFreq));
-            
-            // Smootholás, hogy ne pattogjon (Glide effect)
-            this.filter.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.02);
+                
+            // Biztonságos matematikai simítás (Glide effect) a Web Audio beépített időzítője helyett
+            if (!this.currentFreq) this.currentFreq = this.baseFreq;
+            this.currentFreq += (targetFreq - this.currentFreq) * 0.15;
+                
+            // Közvetlen értékadás, ami sosem fagyasztja le a hangmotort
+            this.filter.frequency.value = this.currentFreq;
         };
 
         // Dummy node, hogy a script processor biztosan fusson
