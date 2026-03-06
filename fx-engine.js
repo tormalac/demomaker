@@ -1108,8 +1108,8 @@ class SpaceEchoDelay {
 
         // Alapértékek
         this.setRate(300);
-        this.setIntensity(40);
-        this.setMix(30);
+        this.setIntensity(15);
+        this.setMix(25);
     }
     
     makeSaturationCurve(amount) {
@@ -1787,7 +1787,7 @@ function createSpaceEchoUI(pluginInstance) {
         <div class="re201-header">SPACE ECHO<span>RE-201</span></div>
         <div class="amp-panel">
             <div class="knob-container"><div class="knob re-knob" data-param="rate" data-min="50" data-max="1000" data-val="300"></div><div class="knob-value">300</div><div class="knob-label">REPEAT RATE</div></div>
-            <div class="knob-container"><div class="knob re-knob" data-param="intensity" data-min="0" data-max="95" data-val="40"></div><div class="knob-value">40</div><div class="knob-label">INTENSITY</div></div>
+            <div class="knob-container"><div class="knob re-knob" data-param="intensity" data-min="0" data-max="95" data-val="15"></div><div class="knob-value">15</div><div class="knob-label">INTENSITY</div></div>
             <div class="knob-container"><div class="knob re-knob" data-param="bass" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">BASS</div></div>
             <div class="knob-container"><div class="knob re-knob" data-param="treble" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">TREBLE</div></div>
             <div class="knob-container"><div class="knob re-knob" data-param="mix" data-min="0" data-max="100" data-val="30"></div><div class="knob-value">30</div><div class="knob-label">ECHO VOL</div></div>
