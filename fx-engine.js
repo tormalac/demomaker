@@ -81,7 +81,8 @@ fxStyles.innerHTML = `
         z-index: 9999; 
         box-shadow: 0 15px 40px rgba(0,0,0,0.95);
         border-radius: 4px;
-        overflow: hidden;
+        max-height: 280px; 
+        overflow-y: auto;
     }
     #plugin-picker.show { display: block; }
     .plugin-pick-btn {
