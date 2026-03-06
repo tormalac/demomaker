@@ -329,6 +329,51 @@ fxStyles.innerHTML = `
     .plugin-mxr .knob-value { color: #fff; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px; margin-bottom: 10px;}
     .knob.mxr-knob { background: #111; border: 2px solid #222; width: 70px; height: 70px; }
     .knob.mxr-knob::after { background: #fff; width: 4px; height: 15px; top: 5px;}
+
+    /* --- IBANEZ TS808 TUBE SCREAMER UI --- */
+    .plugin-ts808 {
+        background: #4caf50; border: 2px solid #2e7d32; border-radius: 6px;
+        width: 100%; max-width: 300px; padding: 25px 20px;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .ts808-header { text-align: center; color: #fff; font-family: Arial, sans-serif; font-style: italic; font-weight: bold; font-size: 1.5rem; letter-spacing: 1px; margin-bottom: 25px; text-shadow: 1px 1px 2px #000;}
+    .plugin-ts808 .knob-label { color: #fff; text-shadow: 1px 1px 1px #000; font-size: 10px; margin-top: 8px;}
+    .plugin-ts808 .knob-value { color: #fff; background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 2px;}
+    .knob.ts-knob { background: #111; border: 1px solid #000; width: 45px; height: 45px; }
+
+    /* --- BIG MUFF PI UI --- */
+    .plugin-muff {
+        background: #dcdcdc; border: 2px solid #aaa; border-radius: 4px;
+        width: 100%; max-width: 350px; padding: 30px 20px;
+        box-shadow: inset 0 0 20px rgba(255,255,255,0.5), 0 10px 30px rgba(0,0,0,0.7);
+        background-image: radial-gradient(circle, #e8e8e8, #c4c4c4);
+    }
+    .muff-header { text-align: center; color: #d00; font-family: 'Arial Black', sans-serif; font-size: 1.8rem; letter-spacing: -1px; margin-bottom: 30px; text-transform: uppercase; text-shadow: 1px 1px 0px #fff;}
+    .muff-header span { color: #000; font-size: 1rem; vertical-align: super; font-family: serif;}
+    .plugin-muff .knob-label { color: #000; font-weight: 900; font-family: sans-serif; font-size: 11px;}
+    .plugin-muff .knob-value { color: #d00; font-weight: bold;}
+    .knob.muff-knob { background: #111; border: 2px solid #444; width: 55px; height: 55px; box-shadow: 0 5px 10px rgba(0,0,0,0.5);}
+
+    /* --- MXR M-117 FLANGER UI --- */
+    .plugin-flanger {
+        background: #333; border: 2px solid #111; border-radius: 4px;
+        width: 100%; max-width: 350px; padding: 25px;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .flanger-header { text-align: left; color: #fff; font-family: 'Arial Black', sans-serif; font-size: 1.5rem; margin-bottom: 25px; font-style: italic;}
+    .plugin-flanger .knob-label { color: #aaa; font-size: 9px;}
+    .plugin-flanger .knob-value { color: #fff; }
+
+    /* --- Q-TRON ENVELOPE FILTER UI --- */
+    .plugin-qtron {
+        background: #a3b8c7; border: 2px solid #5a6e7a; border-radius: 8px;
+        width: 100%; max-width: 350px; padding: 30px;
+        box-shadow: inset 0 0 15px rgba(255,255,255,0.2), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .qtron-header { text-align: center; color: #222; font-family: 'Arial Black', sans-serif; font-size: 1.8rem; margin-bottom: 25px; letter-spacing: 2px;}
+    .plugin-qtron .knob-label { color: #222; font-weight: bold; font-size: 10px;}
+    .plugin-qtron .knob-value { color: #222; background: rgba(255,255,255,0.5); padding: 2px 4px; border-radius: 2px;}
+    .knob.q-knob { background: #111; border: 2px solid #333; width: 50px; height: 50px;}
     
 `;
 document.head.appendChild(fxStyles);
@@ -1281,6 +1326,270 @@ class MXRPhaser {
     }
 }
 
+// --- 13. Ibanez TS808 Tube Screamer (Overdrive) ---
+class TS808Overdrive {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // TS jellegzetes mid-hump: vágja a mélyet, kiemeli a 720Hz-et
+        this.preEq = ctx.createBiquadFilter();
+        this.preEq.type = 'bandpass';
+        this.preEq.frequency.value = 720;
+        this.preEq.Q.value = 0.5;
+
+        // Aszimmetrikus (soft) torzítás
+        this.driveNode = ctx.createWaveShaper();
+        this.driveNode.oversample = '4x';
+
+        // Tone poti (Lowpass szűrő)
+        this.toneFilter = ctx.createBiquadFilter();
+        this.toneFilter.type = 'lowpass';
+        
+        this.levelNode = ctx.createGain();
+
+        this.input.connect(this.preEq);
+        this.preEq.connect(this.driveNode);
+        
+        // Hozzákeverünk egy kis tiszta jelet is, ez adja a TS karakterét!
+        this.cleanBlend = ctx.createGain();
+        this.cleanBlend.gain.value = 0.3;
+        this.input.connect(this.cleanBlend);
+        this.cleanBlend.connect(this.toneFilter);
+
+        this.driveNode.connect(this.toneFilter);
+        this.toneFilter.connect(this.levelNode);
+        this.levelNode.connect(this.output);
+
+        this.setDrive(50);
+        this.setTone(50);
+        this.setLevel(50);
+    }
+
+    makeSoftCurve(amount) {
+        let k = amount * 1.5;
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Aszimmetrikus, csöves jellegű vágás
+            if (x < 0) curve[i] = -1 + Math.exp(x * (1 + k/10));
+            else curve[i] = Math.tanh(x * (1 + k/5));
+        }
+        return curve;
+    }
+
+    setDrive(val) { this.driveNode.curve = this.makeSoftCurve(val); }
+    setTone(val) { this.toneFilter.frequency.value = 500 + (val * 45); } // 500Hz - 5000Hz
+    setLevel(val) { this.levelNode.gain.value = val / 50; } // 0 - 2.0x gain
+}
+
+// --- 14. Electro-Harmonix Big Muff Pi (Fuzz) ---
+class BigMuffFuzz {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // Extrém erősítés mielőtt a torzítóba ér
+        this.preGain = ctx.createGain();
+        
+        // Szigorú, szimmetrikus Hard Clipping (Fuzz)
+        this.fuzzNode = ctx.createWaveShaper();
+        this.fuzzNode.oversample = '4x';
+
+        // A klasszikus "Scooped" Big Muff Tone Stack
+        // Két szűrő: egy mély és egy magas, ezek arányát állítja a Tone poti
+        this.lowFilter = ctx.createBiquadFilter();
+        this.lowFilter.type = 'lowpass';
+        this.lowFilter.frequency.value = 300; // Mélyek átengedése
+
+        this.highFilter = ctx.createBiquadFilter();
+        this.highFilter.type = 'highpass';
+        this.highFilter.frequency.value = 1200; // Magasak átengedése, közép kivágva!
+
+        this.toneMixL = ctx.createGain();
+        this.toneMixH = ctx.createGain();
+        
+        this.volumeNode = ctx.createGain();
+
+        this.input.connect(this.preGain);
+        this.preGain.connect(this.fuzzNode);
+        
+        this.fuzzNode.connect(this.lowFilter);
+        this.lowFilter.connect(this.toneMixL);
+        this.toneMixL.connect(this.volumeNode);
+
+        this.fuzzNode.connect(this.highFilter);
+        this.highFilter.connect(this.toneMixH);
+        this.toneMixH.connect(this.volumeNode);
+        
+        this.volumeNode.connect(this.output);
+
+        this.setSustain(50);
+        this.setTone(50);
+        this.setLevel(50);
+    }
+
+    makeFuzzCurve(amount) {
+        let k = amount * 10; // Brutál gain
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Szinte négyszögesítjük a jelet (Hard clipping)
+            curve[i] = Math.sign(x) * (1 - Math.exp(-Math.abs(x) * (10 + k)));
+        }
+        return curve;
+    }
+
+    setSustain(val) { 
+        this.preGain.gain.value = 1 + (val / 10); // Hajtjuk befelé a jelet
+        this.fuzzNode.curve = this.makeFuzzCurve(val); 
+    }
+    setTone(val) { 
+        // 0 = csak mély, 100 = csak magas
+        let mix = val / 100;
+        this.toneMixL.gain.value = 1 - mix;
+        this.toneMixH.gain.value = mix;
+    }
+    setLevel(val) { this.volumeNode.gain.value = val / 50; }
+}
+
+// --- 15. MXR M-117R Flanger ---
+class M117Flanger {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.dry = ctx.createGain();
+        this.wet = ctx.createGain();
+        this.dry.gain.value = 0.5;
+        this.wet.gain.value = 0.5;
+
+        // Rövid delay (0-10ms)
+        this.delay = ctx.createDelay(0.02);
+        
+        // Visszacsatolás (Resonance/Regen) - ez adja a jet repülő hangot
+        this.regenGain = ctx.createGain();
+        
+        // LFO a késleltetés mozgatásához
+        this.lfo = ctx.createOscillator();
+        this.lfo.type = 'triangle';
+        this.lfoGain = ctx.createGain();
+
+        // Routing
+        this.input.connect(this.dry);
+        this.dry.connect(this.output);
+
+        this.input.connect(this.delay);
+        this.delay.connect(this.wet);
+        this.wet.connect(this.output);
+
+        // Regen (Feedback) loop
+        this.delay.connect(this.regenGain);
+        this.regenGain.connect(this.delay);
+
+        // LFO rákötve a delay idejére
+        this.lfo.connect(this.lfoGain);
+        this.lfoGain.connect(this.delay.delayTime);
+        this.lfo.start();
+
+        this.setManual(50);
+        this.setWidth(50);
+        this.setSpeed(20);
+        this.setRegen(50);
+    }
+
+    setManual(val) { 
+        // Alap delay idő (0.001 - 0.01 sec)
+        this.baseDelay = 0.001 + (val / 100) * 0.009;
+        this.delay.delayTime.value = this.baseDelay;
+    }
+    setWidth(val) { 
+        // LFO kitérése (mennyire másszon el a baseDelay-től)
+        this.lfoGain.gain.value = (val / 100) * 0.005;
+    }
+    setSpeed(val) { 
+        // 0.1Hz - 5Hz
+        this.lfo.frequency.value = 0.1 + (val / 100) * 4.9;
+    }
+    setRegen(val) { 
+        // Visszacsatolás (-0.9-től +0.9-ig, hogy ne szálljon el)
+        // Általában a negatív feedback adja a klasszikus "csöves" flanger hangot
+        this.regenGain.gain.value = (val / 100) * 0.9;
+    }
+}
+
+// --- 16. Electro-Harmonix Q-Tron (Envelope Filter) ---
+class QTronFilter {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // Bandpass (vagy Lowpass) szűrő
+        this.filter = ctx.createBiquadFilter();
+        this.filter.type = 'bandpass';
+        this.filter.Q.value = 10;
+        this.filter.frequency.value = 300; // Alap freki
+
+        // --- ENVELOPE FOLLOWER (Burkológörbe követő) ---
+        // Mivel Web Audio-ban nincs natív env follower paraméter rángatásra,
+        // ScriptProcessor-ral csináljuk (analizáljuk a hangerőt blokkonként)
+        this.analyzer = ctx.createScriptProcessor(1024, 1, 1);
+        
+        this.sensitivity = 0.5;
+        this.baseFreq = 300;
+        this.peakFreq = 5000;
+
+        // Ezt folyamatosan hívja a rendszer, ha hang megy át rajta
+        this.analyzer.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+            let sum = 0;
+            for (let i = 0; i < inputData.length; i++) {
+                sum += inputData[i] * inputData[i];
+            }
+            // RMS (átlagos hangerő) kiszámítása
+            let rms = Math.sqrt(sum / inputData.length);
+            
+            // Jelerősség felnagyítása a sensitivity (drive) poti alapján
+            let driveLvl = rms * (this.sensitivity * 50); 
+            if (driveLvl > 1) driveLvl = 1;
+
+            // Új frekvencia beállítása (Sweep)
+            let targetFreq = this.baseFreq + (driveLvl * (this.peakFreq - this.baseFreq));
+            
+            // Smootholás, hogy ne pattogjon (Glide effect)
+            this.filter.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.02);
+        };
+
+        // Dummy node, hogy a script processor biztosan fusson
+        this.dummyOutput = ctx.createGain();
+        this.dummyOutput.gain.value = 0;
+
+        // Routing
+        this.input.connect(this.filter);
+        this.filter.connect(this.output);
+
+        // Párhuzamos út az analizáláshoz
+        this.input.connect(this.analyzer);
+        this.analyzer.connect(this.dummyOutput);
+        this.dummyOutput.connect(this.ctx.destination); // Kell egy valós végpont a működéshez
+
+        this.setDrive(50);
+        this.setQ(50);
+    }
+
+    setDrive(val) { this.sensitivity = val / 100; }
+    setQ(val) { this.filter.Q.value = 2 + (val / 100) * 18; } // Q = 2 - 20
+    setMode(val) { 
+        // Választható Lowpass vagy Bandpass (valami egyszerű switch-ként a UI-on)
+        this.filter.type = val > 50 ? 'bandpass' : 'lowpass'; 
+    }
+}
 
 // ==========================================================
 // --- UI GENERÁTOROK ---
@@ -1536,6 +1845,80 @@ function createMXRUI(pluginInstance) {
     return wrapper;
 }
 
+// --- TS808 UI ---
+function createTS808UI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-ts808';
+    wrapper.innerHTML = `
+        <div class="ts808-header">TS-808 OVERDRIVE</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob ts-knob" data-param="drive" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">OVERDRIVE</div></div>
+            <div class="knob-container"><div class="knob ts-knob" data-param="tone" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">TONE</div></div>
+            <div class="knob-container"><div class="knob ts-knob" data-param="level" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">LEVEL</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp'); // amp logika (0-100 értékek)
+    return wrapper;
+}
+
+// --- BIG MUFF UI ---
+function createMuffUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-muff';
+    wrapper.innerHTML = `
+        <div class="muff-header">Big Muff<span> π</span></div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob muff-knob" data-param="sustain" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">VOLUME</div></div>
+            <div class="knob-container"><div class="knob muff-knob" data-param="tone" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">TONE</div></div>
+            <div class="knob-container"><div class="knob muff-knob" data-param="level" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">SUSTAIN</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
+// --- M117 FLANGER UI ---
+function createFlangerUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-flanger';
+    wrapper.innerHTML = `
+        <div class="flanger-header">M-117 FLANGER</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob mxr-knob" data-param="manual" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">MANUAL</div></div>
+            <div class="knob-container"><div class="knob mxr-knob" data-param="width" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">WIDTH</div></div>
+            <div class="knob-container"><div class="knob mxr-knob" data-param="speed" data-min="0" data-max="100" data-val="20"></div><div class="knob-value">20</div><div class="knob-label">SPEED</div></div>
+            <div class="knob-container"><div class="knob mxr-knob" data-param="regen" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">REGEN</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
+// --- Q-TRON UI ---
+function createQTronUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-qtron';
+    wrapper.innerHTML = `
+        <div class="qtron-header">Q-TRON</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob q-knob" data-param="mode" data-min="0" data-max="100" data-val="100" data-step="true" data-steps="0,100"></div><div class="knob-value">BP</div><div class="knob-label">MODE (LP/BP)</div></div>
+            <div class="knob-container"><div class="knob q-knob" data-param="q" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">PEAK (Q)</div></div>
+            <div class="knob-container"><div class="knob q-knob" data-param="drive" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">DRIVE</div></div>
+        </div>
+    `;
+    
+    // Kicsi hack a "Mode" kijelzésére
+    wrapper.querySelector('.knob[data-param="mode"]').addEventListener('mouseup', function() {
+        setTimeout(() => {
+            const val = parseFloat(this.dataset.val);
+            this.nextElementSibling.textContent = val > 50 ? 'BP' : 'LP';
+        }, 10);
+    });
+
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
 // --- KÖZÖS POTMÉTER LOGIKA ---
 function setupKnobs(wrapper, pluginInstance, type) {
     const knobs = wrapper.querySelectorAll('.knob');
@@ -1595,13 +1978,24 @@ function setupKnobs(wrapper, pluginInstance, type) {
             if (param === 'drive') pluginInstance.setDrive(newVal);
             else if (param === 'ips') pluginInstance.setIPS(newVal);
         } else if (type === 'amp') {
-            if (param === 'drive') pluginInstance.setDrive(newVal);
-            else if (param === 'bass') pluginInstance.setBass(newVal);
-            else if (param === 'mid') pluginInstance.setMid(newVal);
-            else if (param === 'treble') pluginInstance.setTreble(newVal);
+            if (param === 'drive') pluginInstance.setDrive?.(newVal);
+            else if (param === 'bass') pluginInstance.setBass?.(newVal);
+            else if (param === 'mid') pluginInstance.setMid?.(newVal);
+            else if (param === 'treble') pluginInstance.setTreble?.(newVal);
             else if (param === 'presence') pluginInstance.setPresence?.(newVal);
             else if (param === 'depth') pluginInstance.setDepth?.(newVal);
-            else if (param === 'volume') pluginInstance.setVolume(newVal);
+            else if (param === 'volume') pluginInstance.setVolume?.(newVal);
+            
+            // --- ÚJ PEDÁLOK PARAMÉTEREI ---
+            else if (param === 'sustain') pluginInstance.setSustain?.(newVal);
+            else if (param === 'tone') pluginInstance.setTone?.(newVal);
+            else if (param === 'level') pluginInstance.setLevel?.(newVal);
+            else if (param === 'manual') pluginInstance.setManual?.(newVal);
+            else if (param === 'width') pluginInstance.setWidth?.(newVal);
+            else if (param === 'speed') pluginInstance.setSpeed?.(newVal);
+            else if (param === 'regen') pluginInstance.setRegen?.(newVal);
+            else if (param === 'q') pluginInstance.setQ?.(newVal);
+            else if (param === 'mode') pluginInstance.setMode?.(newVal);
         }
     };
 
@@ -1661,11 +2055,15 @@ const modalHTML = `
                         <div id="plugin-picker">
                             <button class="plugin-pick-btn" data-plugin="nv73">N-73 Preamp & EQ</button>
                             <button class="plugin-pick-btn" data-plugin="la2a">L-2A Leveler</button>
-                            <button class="plugin-pick-btn" data-plugin="dbx">dbx 160 Punch Comp</button>                            
+                            <button class="plugin-pick-btn" data-plugin="dbx">dbx 160 Punch Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="ts808">TS-808 Tube Screamer</button>
+                            <button class="plugin-pick-btn" data-plugin="muff">Big Muff Fuzz</button>
+                            <button class="plugin-pick-btn" data-plugin="qtron">Q-Tron Env Filter</button>
+                            <button class="plugin-pick-btn" data-plugin="flanger">M-117 Flanger</button>
+                            <button class="plugin-pick-btn" data-plugin="mxr">Phase 90</button>                            
                             <button class="plugin-pick-btn" data-plugin="brit">Brit 800 Amp</button>
                             <button class="plugin-pick-btn" data-plugin="djent">Djent 51 Amp</button>
                             <button class="plugin-pick-btn" data-plugin="juno">Juno-60 Chorus</button>
-                            <button class="plugin-pick-btn" data-plugin="mxr">Phase 90</button>
                             <button class="plugin-pick-btn" data-plugin="lexicon">224 Digital Reverb</button>
                             <button class="plugin-pick-btn" data-plugin="spaceecho">RE-201 Space Echo</button>
                             <button class="plugin-pick-btn" data-plugin="tape">Vintage Tape Sat</button>
@@ -1763,17 +2161,25 @@ document.addEventListener('click', (e) => {
             plugin = new NV73Preamp(audioCtx); ui = createNV73UI(plugin); name = 'N-73 Preamp';
         } else if (pluginType === 'la2a') {
             plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'LA-2A Leveler';
-        } else if (pluginType === 'dbx') { // ÚJ
+        } else if (pluginType === 'dbx') { 
             plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'dbx 160';
-        } else if (pluginType === 'ssl') { // ÚJ
+        } else if (pluginType === 'ssl') { 
             plugin = new SSLBusCompressor(audioCtx); ui = createSSLUI(plugin); name = 'SSL G-Bus';
         } else if (pluginType === 'spaceecho') {
             plugin = new SpaceEchoDelay(audioCtx); ui = createSpaceEchoUI(plugin); name = 'Space Echo';
-        } else if (pluginType === 'lexicon') { // ÚJ
+        } else if (pluginType === 'lexicon') { 
             plugin = new LexiconReverb(audioCtx); ui = createLexiconUI(plugin); name = '224 Reverb';
-        } else if (pluginType === 'juno') { // ÚJ
+        } else if (pluginType === 'juno') { 
             plugin = new JunoChorus(audioCtx); ui = createJunoUI(plugin); name = 'Juno Chorus';
-        } else if (pluginType === 'mxr') { // ÚJ
+        } else if (pluginType === 'ts808') { 
+            plugin = new TS808Overdrive(audioCtx); ui = createTS808UI(plugin); name = 'TS-808'; 
+        } else if (pluginType === 'muff') { 
+            plugin = new BigMuffFuzz(audioCtx); ui = createMuffUI(plugin); name = 'Big Muff'; 
+        } else if (pluginType === 'flanger') { 
+            plugin = new M117Flanger(audioCtx); ui = createFlangerUI(plugin); name = 'M-117 Flanger'; 
+        } else if (pluginType === 'qtron') { 
+            plugin = new QTronFilter(audioCtx); ui = createQTronUI(plugin); name = 'Q-Tron'; 
+        } else if (pluginType === 'mxr') { 
             plugin = new MXRPhaser(audioCtx); ui = createMXRUI(plugin); name = 'Phase 90';
         } else if (pluginType === 'tape') {
             plugin = new TapeSaturator(audioCtx); ui = createTapeUI(plugin); name = 'Vintage Tape';
