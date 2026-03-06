@@ -2039,6 +2039,9 @@ function updateKnobVisuals(knob, val, type) {
         // --- ÚJ: Tape Saturator vizuális frissítése ---
         if (param === 'ips') valDisplay.textContent = Math.round(val) + ' IPS';
         else valDisplay.textContent = Math.round(val);
+    } else if (type === 'amp') {
+        // Frissíti a kijelzőt az Ampoknál, Pedáloknál, Reverbnél és Delaynél is!
+        valDisplay.textContent = Math.round(val);
     }
 }
 
