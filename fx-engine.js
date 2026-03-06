@@ -1997,6 +1997,11 @@ function setupKnobs(wrapper, pluginInstance, type) {
             else if (param === 'regen') pluginInstance.setRegen?.(newVal);
             else if (param === 'q') pluginInstance.setQ?.(newVal);
             else if (param === 'mode') pluginInstance.setMode?.(newVal);
+            else if (param === 'rate') pluginInstance.setRate?.(newVal);
+            else if (param === 'intensity') pluginInstance.setIntensity?.(newVal);
+            else if (param === 'mix') pluginInstance.setMix?.(newVal);
+            else if (param === 'time') pluginInstance.setTime?.(newVal);
+            else if (param === 'damping') pluginInstance.setDamping?.(newVal);
         }
     };
 
