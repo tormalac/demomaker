@@ -474,21 +474,62 @@ class AnalogDrumMachine {
 }
 
 // ==========================================================
-// --- SYNTH ENGINE: VIRTUAL ANALOG SYNTHESIZER ---
+// --- SYNTH ENGINE: VIRTUAL ANALOG SYNTHESIZER (MULTI-PRESET) ---
 // ==========================================================
 class AnalogSynth {
     constructor(ctx) {
         this.ctx = ctx;
-        this.oscType = 'sawtooth';
-        this.cutoff = 1500;
-        this.resonance = 5;
-        this.attack = 0.05;
-        this.decay = 0.2;
-        this.sustain = 0.4;
-        this.release = 0.5;
+        this.setPreset('Classic Saw'); // Alapértelmezett
     }
 
-    playNote(midiNote, time, duration, velocity = 100, destinationNode) {
+    setPreset(presetName) {
+        this.preset = presetName;
+        
+        switch(presetName) {
+            case 'Deep Bass':
+                // Sokkal vastagabb, telítettebb basszus, ami mobilon is átjön
+                this.oscType = 'triangle';
+                this.osc2Type = 'square';
+                this.osc2Detune = -1200; // Egy komplett oktávval lejjebb szól a 2. oszcillátor!
+                this.cutoff = 1000;
+                this.resonance = 3;
+                this.attack = 0.02;
+                this.decay = 0.4;
+                this.sustain = 0.2;
+                this.release = 0.2;
+                break;
+            case '8-Bit Square':
+                // Rövid, éles, "Nintendo" stílusú hang
+                this.oscType = 'square';
+                this.osc2Type = 'square';
+                this.osc2Detune = 7; 
+                this.cutoff = 8000;  
+                this.resonance = 0;
+                this.attack = 0.01;
+                this.decay = 0.1;
+                this.sustain = 0.001;  // <-- EZT JAVÍTSD KI ERRE! (0.0 helyett)
+                this.release = 0.05;
+                break;
+            case 'Classic Saw':
+            default:
+                // Vastag, retro "Stranger Things" fűrészfog pad
+                this.oscType = 'sawtooth';
+                this.osc2Type = 'sawtooth';
+                this.osc2Detune = 15; // Kórusos, széles hatás
+                this.cutoff = 2000;
+                this.resonance = 5;
+                this.attack = 0.05;
+                this.decay = 0.3;
+                this.sustain = 0.5;
+                this.release = 0.5;
+                break;
+        }
+    }
+
+    playNote(midiNote, time, duration, velocity = 100, destinationNode, presetName = null) {
+        // Ha jön parancs, átváltjuk az "agyát" az adott presetre!
+        if (presetName) this.setPreset(presetName);
+
         const dest = destinationNode || this.ctx.destination;
         const vel = velocity / 127;
         const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -497,10 +538,12 @@ class AnalogSynth {
         const osc2 = this.ctx.createOscillator(); 
         
         osc1.type = this.oscType;
-        osc2.type = 'square';
+        osc2.type = this.osc2Type || this.oscType;
         
         osc1.frequency.value = freq;
-        osc2.frequency.value = freq * Math.pow(2, 5 / 1200); 
+        osc2.frequency.value = freq;
+        // Ha van elhangolás (detune), rárakjuk a második oszcillátorra
+        if (this.osc2Detune) osc2.detune.value = this.osc2Detune;
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
@@ -529,7 +572,7 @@ class AnalogSynth {
         osc1.stop(time + duration + this.release + 0.1);
         osc2.stop(time + duration + this.release + 0.1);
         
-        return [osc1, osc2]; // <-- Begyűjtve a leállításhoz!
+        return [osc1, osc2]; 
     }
 }
 
