@@ -887,6 +887,13 @@ document.addEventListener('click', e => {
         if (confirm('Törlöd ezt a sávot?')) {
             const track = e.target.closest('.track-container');
             const trackId = track.dataset.trackId;
+
+            // Leválasztjuk a sáv csomópontjait a Masterről, mielőtt töröljük
+            if (track.trackGainNode) track.trackGainNode.disconnect();
+            if (track.trackPannerNode) track.trackPannerNode.disconnect();
+            if (track.analyserNode) track.analyserNode.disconnect();
+            if (track.fxOutputNode) track.fxOutputNode.disconnect();
+
             track.remove();
             
             const mixChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
