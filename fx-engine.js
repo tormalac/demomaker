@@ -252,6 +252,32 @@ fxStyles.innerHTML = `
     .knob.amp-black { background: radial-gradient(circle at 50% 10%, #444, #000); border: 1px solid #555; width: 42px; height: 42px; box-shadow: 0 5px 10px rgba(0,0,0,1);}
     .knob.amp-black::after { background: #f00; width: 2px; height: 14px;}
 
+    /* --- SANSAMP BASS DRIVER DI UI --- */
+    .plugin-sansamp {
+        background: #1a1a1a; border: 2px solid #333; border-radius: 4px; border-bottom: 8px solid #f2c94c;
+        width: 100%; max-width: 500px; padding: 25px 20px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .sansamp-header { text-align: center; color: #f2c94c; font-family: 'Arial Black', sans-serif; font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 25px;}
+    .plugin-sansamp .knob-label { color: #f2c94c; font-size: 9px; }
+    .plugin-sansamp .knob-value { color: #fff; }
+    .knob.sans-knob { background: radial-gradient(circle at 50% 50%, #444, #111); border: 2px solid #222; width: 45px; height: 45px; }
+
+    /* --- DARKGLASS B7K UI --- */
+    .plugin-darkglass {
+        background: #25282a; border: 1px solid #111; border-radius: 8px;
+        width: 100%; max-width: 450px; padding: 25px;
+        box-shadow: inset 0 0 15px rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.8);
+        background-image: linear-gradient(135deg, #2a2d30 25%, transparent 25%, transparent 50%, #2a2d30 50%, #2a2d30 75%, transparent 75%, transparent);
+        background-size: 4px 4px; /* Finom szálcsiszolt fém textúra */
+    }
+    .darkglass-header { text-align: left; color: #fff; font-family: 'Space Grotesk', sans-serif; font-size: 1.6rem; font-weight: 700; letter-spacing: -1px; margin-bottom: 20px;}
+    .darkglass-header span { color: #00ffd5; font-size: 1rem; margin-left: 5px; }
+    .plugin-darkglass .knob-label { color: #aaa; font-size: 10px;}
+    .plugin-darkglass .knob-value { color: #00ffd5; }
+    .knob.darkglass-knob { background: #111; border: 1px solid #555; width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 4px 5px rgba(0,0,0,0.5);}
+    .knob.darkglass-knob::after { background: #00ffd5; width: 2px; height: 12px; }
+
 /* --- DBX 160 UI (Punch Comp) --- */
     .plugin-dbx {
         background: #111; border: 2px solid #333; border-radius: 4px; border-top: 15px solid #000;
@@ -918,6 +944,124 @@ class Djent51Amp {
     setTreble(val) { this.treble.gain.value = (val - 50) / 2.5; }
     setDepth(val) { this.depth.gain.value = val / 10; } // 0-10dB mély rezonancia (Mesa style)
     setVolume(val) { this.masterVolume.gain.value = val / 100; }
+}
+
+// --- Tech21 SansAmp Driver ---
+class SansAmpDI {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.cleanPath = ctx.createGain();
+        this.drivePath = ctx.createGain();
+
+        // Csöves jellegű meleg torzítás
+        this.driveNode = ctx.createWaveShaper();
+        this.driveNode.oversample = '4x';
+
+        // Aktív EQ a torzított ágon
+        this.bassEq = ctx.createBiquadFilter(); this.bassEq.type = 'lowshelf'; this.bassEq.frequency.value = 80;
+        this.trebleEq = ctx.createBiquadFilter(); this.trebleEq.type = 'highshelf'; this.trebleEq.frequency.value = 3200;
+        this.presenceEq = ctx.createBiquadFilter(); this.presenceEq.type = 'peaking'; this.presenceEq.frequency.value = 2500; this.presenceEq.Q.value = 1.0;
+
+        // Routing
+        this.input.connect(this.cleanPath);
+        this.cleanPath.connect(this.output);
+
+        this.input.connect(this.driveNode);
+        this.driveNode.connect(this.bassEq);
+        this.bassEq.connect(this.trebleEq);
+        this.trebleEq.connect(this.presenceEq);
+        this.presenceEq.connect(this.drivePath);
+        this.drivePath.connect(this.output);
+
+        this.setBlend(50);
+        this.setDrive(50);
+        this.setBass(50);
+        this.setTreble(50);
+        this.setPresence(50);
+    }
+
+    makeTubeCurve(amount) {
+        let k = amount;
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Enyhe aszimmetrikus csöves vágás
+            if (x < 0) curve[i] = -1 + Math.exp(x * (1 + k/15));
+            else curve[i] = Math.tanh(x * (1 + k/10));
+        }
+        return curve;
+    }
+
+    setBlend(val) { 
+        this.cleanPath.gain.value = 1 - (val / 100);
+        this.drivePath.gain.value = val / 100;
+    }
+    setDrive(val) { this.driveNode.curve = this.makeTubeCurve(val); }
+    setBass(val) { this.bassEq.gain.value = (val - 50) / 3; } // -16 to +16dB
+    setTreble(val) { this.trebleEq.gain.value = (val - 50) / 3; }
+    setPresence(val) { this.presenceEq.gain.value = (val - 50) / 3; }
+}
+
+// --- Darkglass B7K (Modern CMOS Bass Overdrive) ---
+class DarkglassAmp {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.cleanPath = ctx.createGain();
+        this.drivePath = ctx.createGain();
+
+        // Darkglass titok: a torzítás előtt kivágja a mélyet (hogy ne legyen saras), 
+        // utána pedig visszaemeli a "Clank" frekvenciákat.
+        this.preHighpass = ctx.createBiquadFilter();
+        this.preHighpass.type = 'highpass';
+        this.preHighpass.frequency.value = 350;
+
+        this.driveNode = ctx.createWaveShaper();
+        this.driveNode.oversample = '4x';
+
+        this.clankEq = ctx.createBiquadFilter();
+        this.clankEq.type = 'highshelf';
+        this.clankEq.frequency.value = 2800;
+
+        // Routing
+        this.input.connect(this.cleanPath);
+        this.cleanPath.connect(this.output);
+
+        this.input.connect(this.preHighpass);
+        this.preHighpass.connect(this.driveNode);
+        this.driveNode.connect(this.clankEq);
+        this.clankEq.connect(this.drivePath);
+        this.drivePath.connect(this.output);
+
+        this.setBlend(50);
+        this.setDrive(50);
+        this.setClank(50);
+    }
+
+    makeCMOSCurve(amount) {
+        let k = amount * 2;
+        let n_samples = 44100;
+        let curve = new Float32Array(n_samples);
+        for (let i = 0; i < n_samples; ++i) {
+            let x = i * 2 / n_samples - 1;
+            // Kemény, hideg, modern clipping
+            curve[i] = Math.tanh(x * (1 + k/5)); 
+        }
+        return curve;
+    }
+
+    setBlend(val) { 
+        this.cleanPath.gain.value = 1 - (val / 100);
+        this.drivePath.gain.value = val / 100;
+    }
+    setDrive(val) { this.driveNode.curve = this.makeCMOSCurve(val); }
+    setClank(val) { this.clankEq.gain.value = (val - 50) / 2; } // Magas emelés
 }
 
 // --- 5. Vintage Tape Saturator ---
@@ -1707,6 +1851,40 @@ function createDjentUI(pluginInstance) {
     return wrapper;
 }
 
+// --- SANSAMP UI ---
+function createSansAmpUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-sansamp';
+    wrapper.innerHTML = `
+        <div class="sansamp-header">BASS DRIVER DI</div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob sans-knob" data-param="blend" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">BLEND</div></div>
+            <div class="knob-container"><div class="knob sans-knob" data-param="bass" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">BASS</div></div>
+            <div class="knob-container"><div class="knob sans-knob" data-param="treble" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">TREBLE</div></div>
+            <div class="knob-container"><div class="knob sans-knob" data-param="presence" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">PRESENCE</div></div>
+            <div class="knob-container"><div class="knob sans-knob" data-param="drive" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">DRIVE</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
+// --- DARKGLASS UI ---
+function createDarkglassUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-darkglass';
+    wrapper.innerHTML = `
+        <div class="darkglass-header">B7K <span>MICROTUBES</span></div>
+        <div class="amp-panel">
+            <div class="knob-container"><div class="knob darkglass-knob" data-param="blend" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">BLEND</div></div>
+            <div class="knob-container"><div class="knob darkglass-knob" data-param="drive" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">DRIVE</div></div>
+            <div class="knob-container"><div class="knob darkglass-knob" data-param="clank" data-min="0" data-max="100" data-val="50"></div><div class="knob-value">50</div><div class="knob-label">CLANK</div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
 // --- TAPE UI ---
 function createTapeUI(pluginInstance) {
     const wrapper = document.createElement('div');
@@ -1996,6 +2174,8 @@ function setupKnobs(wrapper, pluginInstance, type) {
             else if (param === 'presence') pluginInstance.setPresence?.(newVal);
             else if (param === 'depth') pluginInstance.setDepth?.(newVal);
             else if (param === 'volume') pluginInstance.setVolume?.(newVal);
+            else if (param === 'blend') pluginInstance.setBlend?.(newVal);
+            else if (param === 'clank') pluginInstance.setClank?.(newVal);
             
             // --- ÚJ PEDÁLOK PARAMÉTEREI ---
             else if (param === 'sustain') pluginInstance.setSustain?.(newVal);
@@ -2082,6 +2262,8 @@ const modalHTML = `
                             <button class="plugin-pick-btn" data-plugin="mxr">Phase 90</button>                            
                             <button class="plugin-pick-btn" data-plugin="brit">Brit 800 Amp</button>
                             <button class="plugin-pick-btn" data-plugin="djent">Djent 51 Amp</button>
+                            <button class="plugin-pick-btn" data-plugin="sansamp">T21 Bass DI</button>
+                            <button class="plugin-pick-btn" data-plugin="darkglass">DG B7K</button>
                             <button class="plugin-pick-btn" data-plugin="juno">Juno-60 Chorus</button>
                             <button class="plugin-pick-btn" data-plugin="lexicon">224 Digital Reverb</button>
                             <button class="plugin-pick-btn" data-plugin="spaceecho">RE-201 Space Echo</button>
@@ -2208,6 +2390,10 @@ document.addEventListener('click', (e) => {
             plugin = new Djent51Amp(audioCtx); ui = createDjentUI(plugin); name = 'Djent 51';
         } else if (pluginType === 'maximizer') {
             plugin = new BrickwallMaximizer(audioCtx); ui = createMaximizerUI(plugin); name = 'L-MAX Limiter';
+        } else if (pluginType === 'sansamp') {
+            plugin = new SansAmpDI(audioCtx); ui = createSansAmpUI(plugin); name = 'SansAmp DI';
+        } else if (pluginType === 'darkglass') {
+            plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'Darkglass B7K';
         }
         
         track.fxChain.push({ name, instance: plugin, ui });
