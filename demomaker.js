@@ -30,6 +30,59 @@ let audioEnabled = false;
 let availableInputs = [];
 let availableOutputs = [];
 
+// ==========================================================
+// --- GLOBAL SIDECHAIN ENGINE (LA-2A STYLE) ---
+// ==========================================================
+const sidechainBus = audioCtx.createGain();
+const scAnalyzer = audioCtx.createScriptProcessor(1024, 1, 1);
+const scDummy = audioCtx.createGain();
+scDummy.gain.value = 0; // Egy néma kimenet, hogy a processor fusson, de ne duplázza a dobot
+
+sidechainBus.connect(scAnalyzer);
+scAnalyzer.connect(scDummy);
+scDummy.connect(audioCtx.destination);
+
+let scCurrentEnv = 0;
+// LA-2A optikai viselkedés: 10ms gyors bekapás, 150ms zenei visszaállás
+const scAttack = Math.exp(-1 / (audioCtx.sampleRate * 0.010)); 
+const scRelease = Math.exp(-1 / (audioCtx.sampleRate * 0.150)); 
+
+scAnalyzer.onaudioprocess = (e) => {
+    const input = e.inputBuffer.getChannelData(0);
+    let sum = 0;
+    for (let i = 0; i < input.length; i++) {
+        sum += input[i] * input[i];
+    }
+    let rms = Math.sqrt(sum / input.length);
+
+    // Optikai burkológörbe követő (Envelope Follower)
+    if (rms > scCurrentEnv) {
+        scCurrentEnv = scAttack * scCurrentEnv + (1 - scAttack) * rms;
+    } else {
+        scCurrentEnv = scRelease * scCurrentEnv + (1 - scRelease) * rms;
+    }
+
+    // Szinti és Basszus sávok kompresszálása
+    document.querySelectorAll('.track-container.synth, .track-container.bass').forEach(track => {
+        if (track.scGainNode) {
+            const scInput = track.querySelector('.trk-sc-slider');
+            const amount = scInput ? parseInt(scInput.value) / 100 : 0;
+            
+            if (amount > 0) {
+                // A dob RMS erejét megszorozzuk az 'Amount' csúszkával
+                let reduction = scCurrentEnv * 5 * amount; 
+                if (reduction > 0.9) reduction = 0.9; // Max 90%-os némítás a digitális pattanások elkerülésére
+                
+                const targetGain = 1.0 - reduction;
+                // setTargetAtTime biztosítja a sima analóg átmenetet, hogy ne pattogjon a hang
+                track.scGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.01);
+            } else {
+                track.scGainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.01);
+            }
+        }
+    });
+};
+
 async function enableAudio() {
   if (audioEnabled) return;
   try {
@@ -364,7 +417,10 @@ function createTrack(type) {
 
     track.innerHTML = `
       <div class="track-inspector">
-        <span class="track-type">${type}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="track-type">${type}</span>
+            ${['bass', 'synth'].includes(type) ? `<button class="daw-btn sidechain-btn pump-btn" title="Sidechain Pump">PUMP</button>` : ''}
+        </div>
         <span class="track-name" contenteditable="true">Track ${trackCounter}</span>
         <button class="delete-track">×</button>
         <div class="track-controls">
@@ -389,6 +445,16 @@ function createTrack(type) {
           <div class="output-picker"></div>
         </div>
         <div class="track-inserts">Audio Inserts</div>
+
+        ${['bass', 'synth'].includes(type) ? `
+        <div class="sidechain-popup">
+            <div class="sc-header">Sidechain</div>
+            <label>Amount
+                <input type="range" min="0" max="100" value="0" class="trk-sc-slider horizontal-fader">
+                <span class="slider-value" style="color: #00ffd5; text-align: right; display: block; margin-top: 4px;">0%</span>
+            </label>
+        </div>
+        ` : ''}
       </div>
       <div class="track-area">
         <div class="timeline">
@@ -398,21 +464,30 @@ function createTrack(type) {
       </div>
     `;
 
-    // --- AUDIO GRAPH BEKÖTÉSE A PANORÁMÁVAL ---
+    // --- AUDIO GRAPH BEKÖTÉSE ---
     const trackGain = audioCtx.createGain();
     const trackPanner = audioCtx.createStereoPanner();
+    const scGain = audioCtx.createGain(); // ÚJ: Sidechain "VCA" Node
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256;
     
-    // Jelút: Panner -> Gain -> Analyser -> Master Gain
+    // Jelút: Panner -> Gain -> SC Gain -> Analyser -> Master Gain
     trackPanner.connect(trackGain);
-    trackGain.connect(analyser);
+    trackGain.connect(scGain);
+    scGain.connect(analyser);
     analyser.connect(masterGain);
     
     track.trackGainNode = trackGain;
     track.trackPannerNode = trackPanner;
+    track.scGainNode = scGain; // Eltároljuk, a ScriptProcessor ezt fogja ráncigálni
     track.analyserNode = analyser;
     trackGain.gain.value = 0.8;
+
+    // --- ÚJ: DOB SÁV BEKÖTÉSE A SIDECHAIN BUS-BA ---
+    if (type === 'drum') {
+        // A dob sávot beleküldjük a láthatatlan Sidechain Analyzerbe is!
+        trackGain.connect(sidechainBus);
+    }
 
     addTrackDragEvents(track);
     list.appendChild(track);
@@ -477,14 +552,29 @@ document.addEventListener('input', e => {
         masterPanner.pan.value = e.target.value / 50;
     }
     
-    // 2. FELSŐ Track Slider húzása -> ALSÓ Mixer frissítése
-    else if (e.target.matches('.track-sliders input[type="range"]')) {
-        const isVol = e.target.parentElement.textContent.includes('Vol');
+    // 2. FELSŐ Track Slider ÉS Sidechain Slider húzása
+    else if (e.target.matches('.track-sliders input[type="range"]') || e.target.classList.contains('trk-sc-slider')) {
+        const isVol = e.target.classList.contains('trk-vol-slider');
+        const isSc = e.target.classList.contains('trk-sc-slider');
         const val = e.target.value;
         const trackContainer = e.target.closest('.track-container');
         const trackId = trackContainer ? trackContainer.dataset.trackId : null;
         
-        if (isVol) {
+        if (isSc) {
+            // Frissíti a Sidechain popupban a számot!
+            e.target.nextElementSibling.textContent = val + '%';
+            
+            // --- ÚJ: PUMP GOMB VILÁGÍTÁSÁNAK KAPCSOLÁSA ---
+            const pumpBtn = trackContainer.querySelector('.pump-btn');
+            if (pumpBtn) {
+                if (val > 0) {
+                    pumpBtn.classList.add('engaged'); // Kigyullad a gomb
+                } else {
+                    pumpBtn.classList.remove('engaged'); // Elalszik a gomb
+                }
+            }
+        }
+        else if (isVol) {
             e.target.nextElementSibling.textContent = val + '%';
             if (trackId) {
                 const mixChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
@@ -1010,6 +1100,29 @@ document.addEventListener('click', e => {
         }
         return;
     }
+
+    // SIDECHAIN GOMB
+    const scBtn = e.target.closest('.daw-btn.sidechain-btn');
+    if (scBtn) {
+        const track = scBtn.closest('.track-container');
+        const popup = track.querySelector('.sidechain-popup');
+        
+        // Zárjuk be az összes többi nyitott SC ablakot, hogy ne legyen káosz
+        document.querySelectorAll('.sidechain-popup').forEach(p => { 
+            if (p !== popup) p.style.display = 'none'; 
+        });
+        document.querySelectorAll('.daw-btn.sidechain-btn').forEach(b => {
+            if (b !== scBtn) b.classList.remove('active');
+        });
+
+        // Váltogatjuk a megnyitást (Toggle)
+        const isClosed = popup.style.display === 'none' || popup.style.display === '';
+        popup.style.display = isClosed ? 'flex' : 'none';
+        scBtn.classList.toggle('active', isClosed);
+        
+        e.stopPropagation();
+        return;
+    }
     
     const otherBtn = e.target.closest('.daw-btn');
     if (otherBtn && !otherBtn.classList.contains('mix-mute') && !otherBtn.classList.contains('mix-solo')) {
@@ -1144,6 +1257,15 @@ function closeAllPickers() {
         p.style.display = 'none';
     });
 }
+
+// Pickerek és Sidechain ablakok bezárása kattintásra (üres területen)
+document.addEventListener('click', (e) => {
+    if(!e.target.closest('.audio-source') && !e.target.closest('.output') && !e.target.closest('.sidechain-popup') && !e.target.closest('.sidechain-btn')){
+        closeAllPickers();
+        document.querySelectorAll('.sidechain-popup').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.daw-btn.sidechain-btn').forEach(b => b.classList.remove('active'));
+    }
+});
 
 const zoomContainer = document.getElementById('zoomContainer');
 function updateZoomVisibility() {
