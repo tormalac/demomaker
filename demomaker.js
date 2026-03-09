@@ -449,6 +449,9 @@ function createTrack(type) {
         ${['bass', 'synth'].includes(type) ? `
         <div class="sidechain-popup">
             <div class="sc-header">Sidechain</div>
+            <div style="font-size: 8px; color: #888; text-align: center; margin-bottom: 6px; line-height: 1.2; font-family: var(--font-mono); letter-spacing: 0.5px;">
+                DRUM-DRIVEN<br>AUDIO DUCKING
+            </div>
             <label>Amount
                 <input type="range" min="0" max="100" value="0" class="trk-sc-slider horizontal-fader">
                 <span class="slider-value" style="color: #00ffd5; text-align: right; display: block; margin-top: 4px;">0%</span>
@@ -1044,59 +1047,53 @@ document.addEventListener('click', e => {
         return;
     }
 
-    // 5. EDIT GOMB (Pattern klip létrehozása és Editor megnyitása)
+    // 5. EDIT GOMB (Editor megnyitása BÁRMELYIK sávon)
     const editBtn = e.target.closest('.daw-btn.edit');
     if (editBtn) {
         const trackContainer = editBtn.closest('.track-container');
+        const isDrum = trackContainer.classList.contains('drum');
+        const selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
         
-        if (trackContainer.classList.contains('drum') || trackContainer.classList.contains('synth')) {
-            // Megnézzük, van-e már kijelölt klip ezen a sávon
-            const selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
-            
-            if (selectedClip) {
-                if (selectedClip.dataset.type === 'pattern') {
-                    // HA SZINTI, AKKOR PIANO ROLL
-                    if (trackContainer.classList.contains('synth') || trackContainer.classList.contains('bass')) {
-                        openPianoRoll(selectedClip);
-                    } else {
-                        // AMÚGY DOBGÉP
-                        openDrumEditor(selectedClip);
-                    }
-                }
-            } else {
-                // NINCS KIJELÖLVE SEMMI: Hozunk létre egy új, 1 ütemes Pattern Klipet a Piros Vonalnál!
-                let startTime = currentPlayTime;
-                
-                // Rácshoz (Grid) illesztjük a kezdést, hogy pontosan ütemre kerüljön
-                const snapPx = getSnapPx();
-                if (snapPx > 0) {
-                    startTime = (Math.round((startTime * PX_PER_SECOND) / snapPx) * snapPx) / PX_PER_SECOND;
-                }
-
-                const clipsContainer = trackContainer.querySelector('.clips');
-                const newClip = addPatternClipToTrack(clipsContainer, "Pattern " + Math.floor(Math.random()*100), startTime, 1);
-                
-                // --- TEST ADATOK: Tegyünk bele egy Alap Dob Groove-ot, hogy lássuk a grafikát! ---
-                if (trackContainer.classList.contains('drum')) {
-                   const secPerBeat = 60 / bpm; 
-                   newClip.patternData.notes.push({note: 36, start: 0, duration: 0.1, velocity: 100}); 
-                   newClip.patternData.notes.push({note: 38, start: secPerBeat, duration: 0.1, velocity: 100}); 
-                   newClip.patternData.notes.push({note: 36, start: secPerBeat*2, duration: 0.1, velocity: 100}); 
-                   newClip.patternData.notes.push({note: 38, start: secPerBeat*3, duration: 0.1, velocity: 100}); 
-                }
-
-                // Kirajzoljuk a Canvas-ra
-                const color = trackContainer.classList.contains('drum') ? '#3fa9f5' : (trackContainer.classList.contains('bass') ? '#ffd93d' : '#b084f7');
-                drawPattern(newClip.querySelector('canvas'), newClip, color);
-
-                const selectBtn = document.querySelector('.select-btn');
-                if (selectBtn && selectBtn.classList.contains('active')) {
-                    document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
-                    newClip.classList.add('selected-clip');
-                }
+        if (selectedClip) {
+            if (selectedClip.dataset.type === 'pattern') {
+                if (isDrum) openDrumEditor(selectedClip); // Dobra dobgép
+                else openPianoRoll(selectedClip);         // MINDEN MÁSRA Piano Roll!
             }
         } else {
-            alert("A Pattern Editor egyelőre csak a DRUM és SYNTH sávokon működik!");
+            // NINCS KIJELÖLVE SEMMI: Hozunk létre egy új Pattern Klipet!
+            let startTime = currentPlayTime;
+            const snapPx = getSnapPx();
+            if (snapPx > 0) {
+                startTime = (Math.round((startTime * PX_PER_SECOND) / snapPx) * snapPx) / PX_PER_SECOND;
+            }
+
+            const clipsContainer = trackContainer.querySelector('.clips');
+            const newClip = addPatternClipToTrack(clipsContainer, "Pattern " + Math.floor(Math.random()*100), startTime, 1);
+            
+            // Teszt adat csak a dobra
+            if (isDrum) {
+               const secPerBeat = 60 / bpm; 
+               newClip.patternData.notes.push({note: 36, start: 0, duration: 0.1, velocity: 100}); 
+               newClip.patternData.notes.push({note: 38, start: secPerBeat, duration: 0.1, velocity: 100}); 
+               newClip.patternData.notes.push({note: 36, start: secPerBeat*2, duration: 0.1, velocity: 100}); 
+               newClip.patternData.notes.push({note: 38, start: secPerBeat*3, duration: 0.1, velocity: 100}); 
+            }
+
+            // Dinamikus szín a sáv típusától függően
+            let waveColor = '#b084f7'; // Alap (Synth)
+            if (isDrum) waveColor = '#3fa9f5';
+            else if (trackContainer.classList.contains('bass')) waveColor = '#ffd93d';
+            else if (trackContainer.classList.contains('guitar')) waveColor = '#00ffd5';
+            else if (trackContainer.classList.contains('vocal')) waveColor = '#ff7ac8';
+            else if (trackContainer.classList.contains('sample')) waveColor = '#ff8c00';
+
+            drawPattern(newClip.querySelector('canvas'), newClip, waveColor);
+
+            const selectBtn = document.querySelector('.select-btn');
+            if (selectBtn && selectBtn.classList.contains('active')) {
+                document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+                newClip.classList.add('selected-clip');
+            }
         }
         return;
     }
