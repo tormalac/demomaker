@@ -2422,13 +2422,21 @@ async function startRecording(startTimeOffset) {
         const selectedInputBtn = track.querySelector('.audio-source-picker button.selected');
         const inputId = selectedInputBtn ? selectedInputBtn.dataset.deviceId : 'default';
 
-        // Ha Virtual sáv (pl. MIDI lesz később), arra nem veszünk fel audio-t
+        // Ha Virtual sáv (pl. MIDI), arra nem veszünk fel mikrofonos audio-t
         if (inputId === 'virtual') continue; 
 
         try {
-            const audioConstraints = (inputId !== 'default') 
-                ? { deviceId: { exact: inputId } } 
-                : true;
+            // --- 1. PRO AUDIO BEÁLLÍTÁSOK (Zajszűrés és Auto-Gain KIKAPCSOLÁSA) ---
+            const audioConstraints = {
+                echoCancellation: false,
+                autoGainControl: false,
+                noiseSuppression: false
+            };
+
+            if (inputId !== 'default') {
+                audioConstraints.deviceId = { exact: inputId };
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
             const mediaRecorder = new MediaRecorder(stream);
             let audioChunks = [];
@@ -2444,7 +2452,27 @@ async function startRecording(startTimeOffset) {
                     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                     const clipsContainer = track.querySelector('.clips');
                     const clipName = "Rec_" + Math.floor(Math.random() * 1000);
-                    addClipToTrack(clipsContainer, audioBuffer, clipName, startTimeOffset);
+                    
+                    // --- 2. LATENCY (KÉSLELTETÉS) KOMPENZÁCIÓ ---
+                    // Böngészős rögzítésnél (ASIO nélkül) átlagosan 100-150ms a hardveres csúszás.
+                    let latencySec = 0.120; // 120 milliszekundum (0.12 mp) kompenzáció
+                    
+                    // Biztonsági ellenőrzés (ha nagyon rövid lenne a felvétel)
+                    if (audioBuffer.duration <= latencySec) {
+                        latencySec = 0; 
+                    }
+                    
+                    const adjustedDuration = audioBuffer.duration - latencySec;
+
+                    addClipToTrack(
+                        clipsContainer, 
+                        audioBuffer, 
+                        clipName, 
+                        startTimeOffset, 
+                        latencySec,        // A trimOffset megkapja a latency értéket
+                        adjustedDuration
+                    );
+                    
                 } catch(decodeErr) {
                     console.error("Hiba az audio feldolgozásakor:", decodeErr);
                 } finally {
@@ -2456,6 +2484,7 @@ async function startRecording(startTimeOffset) {
             activeRecorders.push(mediaRecorder);
 
         } catch (err) {
+            console.error("Felvételi hiba:", err);
             track.querySelector('.daw-btn.record').classList.remove('active');
         }
     }
