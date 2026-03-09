@@ -49,12 +49,19 @@
 
        <button class="project-btn">New</button>
        <button class="project-btn">Save</button>
-       <button class="project-btn">Open</button>
+       <div style="position: relative; display: inline-block;">
+           <button class="project-btn" id="openMenuBtn">Open</button>
+           <div class="track-picker" id="openPicker" style="min-width: 120px; top: 110%; left: 0;">
+               <button id="openLocalBtn">From PC</button>
+               <button id="openCloudBtn">From Cloud</button>
+           </div>
+       </div>
        <button class="project-btn">Cloud</button>
        <button class="project-btn">Import</button>
        <button class="project-btn">Export</button>
         
     </div>
+    <input type="file" id="projectImportInput" accept=".json" style="display: none;">
     <input type="file" id="audioImportInput" accept="audio/*" style="display: none;">
     
     <div class="control-panel">
@@ -277,6 +284,280 @@ onAuthStateChanged(auth, user => {
         logoutBtn.style.display = "none";
     }
 });
+
+
+// --- Cloud mentés ---
+document.querySelectorAll('.project-btn').forEach(btn => {
+    if (btn.textContent === 'Cloud') {
+        btn.onclick = async () => {
+            const originalText = btn.textContent;
+            btn.textContent = 'Saving...';
+            btn.style.color = '#00ffd5'; 
+
+            try {
+                // 1. Projekt adatok JSON-ná alakítása
+                const projectData = window.serializeProject(); 
+                const jsonString = JSON.stringify(projectData);
+
+                // 2. Blob fájl létrehozása
+                const blob = new Blob([jsonString], { type: 'application/json' });
+
+                // 3. FormData összerakása (A Multer a "file" kulcsot várja)
+                const formData = new FormData();
+                formData.append("file", blob, "demomaker_project.json");
+
+                // 4. Küldés a TE RENDER BACKENDEDRE! 
+                // (Írd át a saját Render URL-edre)
+                const backendUrl = "https://music-backend-jq1s.onrender.com/upload-project";
+                
+                const response = await fetch(backendUrl, {
+                    method: "POST",
+                    body: formData
+                });
+
+                // 1. NE egyből json()-t csináljunk, hanem olvassuk be nyers szövegként!
+                const responseText = await response.text();
+                
+                // 2. Írjuk ki a konzolba, hátha egy beszédes hibaoldal (pl. "Not Found")
+                console.log("A szerver nyers válasza:", responseText);
+
+                if (!response.ok) {
+                    throw new Error(`Szerver hiba kód: ${response.status}. Nézd meg a böngésző konzolját (F12)!`);
+                }
+
+                // 3. Ha minden OK, akkor csinálunk belőle JSON-t
+                const data = JSON.parse(responseText);
+
+                if (data.url) {
+                    console.log("Projekt mentve! URL:", data.url);
+                    
+                    try {
+                        // Megpróbáljuk automatikusan a vágólapra másolni
+                        await navigator.clipboard.writeText(data.url);
+                        alert("A projekt sikeresen mentve a felhőbe!\n\nA link automatikusan a vágólapodra lett másolva:\n" + data.url);
+                    } catch (err) {
+                        // Ha a böngésző nem engedi az auto-másolást, adunk egy kijelölhető szövegdobozt
+                        prompt("A projekt sikeresen mentve a felhőbe!\nMásold ki az alábbi linket (Ctrl+C / Hosszan nyomás):", data.url);
+                    }
+                }
+
+            } catch(e) {
+                console.error(e);
+                alert("Hiba a mentésnél: " + e.message);
+            }
+
+            // Gomb visszaállítása
+            btn.textContent = originalText;
+            btn.style.color = '';
+        };
+    }
+});
+
+// --- PROJEKT BETÖLTÉSE (DESERIALIZÁCIÓ) ---
+window.loadProject = async function(projectData) {
+    if (!projectData || !projectData.tracks) return;
+
+    // 1. Tiszta lap: Töröljük a jelenlegi sávokat
+    document.querySelectorAll('.track-container').forEach(t => t.remove());
+    document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
+    trackCounter = 0;
+    
+    const rulerEl = document.getElementById('timelineRuler');
+    rulerEl.style.display = 'none';
+
+    // 2. Globális beállítások (BPM, Ütemmutató)
+    if (projectData.bpm) {
+        bpm = projectData.bpm;
+        document.querySelector('.bpm-input').value = bpm;
+    }
+    if (projectData.timeSig) {
+        timeSig = projectData.timeSig;
+        document.querySelector('.time-signature-input').value = `${timeSig[0]}/${timeSig[1]}`;
+    }
+
+    // 3. Sávok újraépítése
+    for (const tData of projectData.tracks) {
+        createTrack(tData.type); // Létrehozza a HTML-t és a DSP láncot
+        
+        // A legutoljára létrehozott sáv az, amivel épp dolgozunk
+        const tracks = document.querySelectorAll('.track-container');
+        const newTrack = tracks[tracks.length - 1];
+        const trackId = newTrack.dataset.trackId;
+        const mixerChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
+
+        // Név és Preset
+        newTrack.querySelector('.track-name').textContent = tData.name;
+        if (mixerChan) mixerChan.querySelector('.mix-header').textContent = tData.name;
+        newTrack.dataset.preset = tData.preset || '';
+
+        // Csúszkák (Vol, Pan) beállítása
+        const volSlider = newTrack.querySelector('.trk-vol-slider');
+        if (volSlider && tData.vol !== undefined) {
+            volSlider.value = tData.vol;
+            volSlider.nextElementSibling.textContent = tData.vol + '%';
+            if (mixerChan) {
+                mixerChan.querySelector('.mix-vol-slider').value = tData.vol;
+                mixerChan.querySelector('.mix-val').textContent = tData.vol + '%';
+            }
+            if (newTrack.trackGainNode) newTrack.trackGainNode.gain.value = tData.vol / 100;
+        }
+
+        const panSlider = newTrack.querySelector('.trk-pan-slider');
+        if (panSlider && tData.pan !== undefined) {
+            panSlider.value = tData.pan;
+            panSlider.nextElementSibling.textContent = tData.pan;
+            if (mixerChan) mixerChan.querySelector('.mix-pan-slider').value = tData.pan;
+            if (newTrack.trackPannerNode) newTrack.trackPannerNode.pan.value = tData.pan / 50;
+        }
+
+        // Sidechain / Pump beállítása
+        const scSlider = newTrack.querySelector('.trk-sc-slider');
+        if (scSlider && tData.scAmount !== undefined) {
+            scSlider.value = tData.scAmount;
+            scSlider.nextElementSibling.textContent = tData.scAmount + '%';
+            const pumpBtn = newTrack.querySelector('.pump-btn');
+            if (pumpBtn) {
+                if (tData.scAmount > 0) pumpBtn.classList.add('engaged');
+                else pumpBtn.classList.remove('engaged');
+            }
+        }
+
+        // Kották (Pattern Klipek) visszaállítása
+        const clipsContainer = newTrack.querySelector('.clips');
+        if (tData.clips) {
+            tData.clips.forEach(cData => {
+                if (cData.type === 'pattern') {
+                    const newClip = addPatternClipToTrack(clipsContainer, "Pattern", cData.start, cData.patternData.lengthInBars);
+                    newClip.patternData = cData.patternData; // Visszaírjuk a kottát
+                    newClip.dataset.duration = cData.duration;
+                    newClip.style.width = `${cData.duration * PX_PER_SECOND}px`;
+                    
+                    // Újrarajzoljuk a bogyókat a sávon
+                    let waveColor = '#b084f7';
+                    if (tData.type === 'drum') waveColor = '#3fa9f5';
+                    else if (tData.type === 'bass') waveColor = '#ffd93d';
+                    else if (tData.type === 'guitar') waveColor = '#00ffd5';
+                    else if (tData.type === 'vocal') waveColor = '#ff7ac8';
+                    else if (tData.type === 'sample') waveColor = '#ff8c00';
+                    else if (tData.type === 'synth') waveColor = '#b084f7';
+                    
+                    const canvas = newClip.querySelector('canvas');
+                    canvas.width = cData.duration * PX_PER_SECOND;
+                    drawPattern(canvas, newClip, waveColor);
+                }
+            });
+        }
+        
+        // --- PRO TIPP: Az effektek visszaépítését ideális esetben itt csinálnánk 
+        // egy pluginMapper segítségével, de ez az alapszerkezet is hibátlanul beolvassa a DAW-ot! ---
+    }
+
+    drawRuler();
+    drawAllGrids();
+    updateZoomVisibility();
+    updatePlayheadVisuals();
+    
+    // UI Frissítés
+    document.getElementById('openPicker').classList.remove('show');
+    alert("Projekt sikeresen betöltve!");
+};
+
+// --- LOKÁLIS MENTÉS (Save to PC) ---
+document.querySelectorAll('.project-btn').forEach(btn => {
+    if (btn.textContent === 'Save') {
+        btn.onclick = () => {
+            try {
+                // 1. Kinyerjük az adatokat
+                const projectData = window.serializeProject(); 
+                const jsonString = JSON.stringify(projectData, null, 2); // Szépen formázott JSON
+                
+                // 2. Fájlt csinálunk belőle a memóriában
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                // 3. Egy láthatatlan linkkel rákényszerítjük a böngészőt a letöltésre
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'demomaker_project.json'; // Ez lesz a fájlnév
+                document.body.appendChild(a);
+                a.click();
+                
+                // 4. Takarítás
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (err) {
+                console.error(err);
+                alert("Hiba a mentés során: " + err.message);
+            }
+        };
+    }
+});
+
+// --- 1. MEGYITÁS GÉPRŐL (Local JSON) ---
+const openLocalBtn = document.getElementById('openLocalBtn');
+const projectImportInput = document.getElementById('projectImportInput');
+
+openLocalBtn.addEventListener('click', () => {
+    projectImportInput.click(); // Megnyitja a Windows fájlkezelőt
+});
+
+projectImportInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        try {
+            const projectData = JSON.parse(event.target.result);
+            window.loadProject(projectData);
+        } catch (err) {
+            alert("Hiba a fájl olvasásakor: Nem érvényes demoMaker projekt.");
+        }
+    };
+    reader.readAsText(file);
+    projectImportInput.value = ''; // Reset
+});
+
+// --- 2. MEGNYITÁS FELHŐBŐL (Cloudinary URL) ---
+const openCloudBtn = document.getElementById('openCloudBtn');
+
+openCloudBtn.addEventListener('click', async () => {
+    const url = prompt("Kérlek, illeszd be a projekt Cloudinary URL-jét:");
+    
+    if (!url) return;
+    
+    // Biztonsági ellenőrzés
+    if (!url.startsWith("http")) {
+        alert("Ez nem tűnik érvényes URL-nek.");
+        return;
+    }
+
+    try {
+        const originalText = openCloudBtn.textContent;
+        openCloudBtn.textContent = 'Loading...';
+        
+        // Letöltjük a JSON fájlt a megadott URL-ről
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Nem sikerült letölteni a projektet.");
+        
+        const projectData = await response.json();
+        
+        // Átadjuk a motornak!
+        window.loadProject(projectData);
+        
+        openCloudBtn.textContent = originalText;
+    } catch (err) {
+        alert("Hiba a felhőből való betöltéskor:\n" + err.message);
+        openCloudBtn.textContent = 'From Cloud';
+    }
+});
+
+document.getElementById('openMenuBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('openPicker').classList.toggle('show');
+});
+
 </script>
 
 </body>
