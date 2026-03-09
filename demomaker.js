@@ -1359,7 +1359,7 @@ bpmInput.addEventListener('change', () => {
             }
 
             // Vonalak újrarajzolása az új pozíciókra
-            const color = clip.closest('.track-container').classList.contains('drum') ? '#3fa9f5' : '#b084f7';
+            const color = getTrackColor(clip.closest('.track-container'));
             drawPattern(canvas, clip, color);
         }
     });
