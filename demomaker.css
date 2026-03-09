@@ -684,6 +684,8 @@ h1, h2, h3 {
     border-left: 6px solid #fff; /* Fehér csík jelzi, hogy ez az aktív */
 }
 
+
+
 /* --- KLIP SZÍNEK TÍPUS SZERINT --- */
 
 /* DRUM (Kék) */
@@ -873,6 +875,81 @@ h1, h2, h3 {
   min-width: 24px;
   display: inline-block;
   text-align: right;
+}
+
+/* --- SIDECHAIN POPUP PANEL --- */
+.pump-btn {
+    height: 16px !important;
+    width: auto !important;
+    padding: 2px 6px 0 6px !important;
+    font-size: 9px !important;
+    border-radius: 2px !important;
+    line-height: 1;
+    letter-spacing: 1px;
+}
+
+.pump-btn.engaged {
+    background: var(--accent) !important;
+    color: #000 !important; /* Fekete betű, hogy kontrasztos legyen a világító zöldön */
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 213, 0.6) !important;
+    text-shadow: none !important;
+}
+
+.sidechain-popup {
+    position: absolute;
+    top: 28px !important; 
+    left: 54px !important;
+    background: rgba(15, 15, 15, 0.95);
+    border: 1px solid #00ffd5;
+    padding: 12px;
+    border-radius: 4px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+    width: 130px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+}
+
+.sc-header {
+    font-size: 0.65rem;
+    color: #00ffd5;
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 1px solid rgba(0, 255, 213, 0.3);
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.sidechain-popup label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.7rem;
+    color: #ccc;
+    font-family: var(--font-mono);
+}
+
+.sidechain-popup input[type=range] {
+  -webkit-appearance: none;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  width: 100%;
+  margin-top: 6px;
+  outline: none;
+}
+
+.sidechain-popup input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
+  cursor: pointer;
 }
 
 .track-meta {
