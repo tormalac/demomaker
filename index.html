@@ -529,6 +529,7 @@ window.loadProject = async function(projectData) {
             }
         }
 
+        // --- KLIPEK VISSZAÁLLÍTÁSA (MIDI ÉS ÚJ AUDIO LOGIKA) ---
         const clipsContainer = newTrack.querySelector('.clips');
         if (tData.clips) {
             tData.clips.forEach(async cData => {
@@ -549,14 +550,41 @@ window.loadProject = async function(projectData) {
                     canvas.width = Math.min(cData.duration * PX_PER_SECOND, 16384);
                     drawPattern(canvas, newClip, waveColor);
 
-                } else if (cData.type === 'audio' && cData.audioData) {
-                    try {
-                        const response = await fetch(cData.audioData);
-                        const arrayBuffer = await response.arrayBuffer();
-                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                        addClipToTrack(clipsContainer, audioBuffer, cData.name, cData.start, cData.trimOffset, cData.duration);
-                    } catch (e) {
-                        console.error("Nem sikerült dekódolni a hangfájlt:", e);
+                } else if (cData.type === 'audio') {
+                    // FIGYELEM: Kivettem a "&& cData.audioData" feltételt, hogy hibás mentésnél is megjelenjen valami!
+                    
+                    // --- GHOST CLIP (TÖLTŐKÉPERNYŐ) LÉTREHOZÁSA ---
+                    const ghostClip = document.createElement('div');
+                    ghostClip.className = 'audio-clip';
+                    ghostClip.style.width = `${cData.duration * PX_PER_SECOND}px`;
+                    ghostClip.style.left = `${cData.start * PX_PER_SECOND}px`;
+                    ghostClip.style.background = 'rgba(0, 0, 0, 0.6)';
+                    ghostClip.style.border = '1px dashed #888';
+                    ghostClip.style.zIndex = '15';
+                    ghostClip.innerHTML = `<div style="font-size:9px; color:#00ffd5; font-family:var(--font-mono); width:100%; text-align:center; padding-top:10px;">Downloading...</div>`;
+                    clipsContainer.appendChild(ghostClip);
+
+                    if (!cData.audioData || cData.audioData.length < 5) {
+                        // Ha már mentéskor sem kapott linket a Render-től
+                        ghostClip.style.border = '1px dashed #ff4c4c';
+                        ghostClip.innerHTML = `<div style="font-size:9px; color:#ff4c4c; font-family:var(--font-mono); width:100%; text-align:center; padding-top:10px;">UPLOAD FAILED</div>`;
+                    } else {
+                        // Letöltés a Cloudinary-ről
+                        fetch(cData.audioData)
+                            .then(response => {
+                                if (!response.ok) throw new Error("HTTP " + response.status);
+                                return response.arrayBuffer();
+                            })
+                            .then(arrayBuffer => audioCtx.decodeAudioData(arrayBuffer))
+                            .then(audioBuffer => {
+                                ghostClip.remove(); // Eltüntetjük a töltőképernyőt
+                                addClipToTrack(clipsContainer, audioBuffer, cData.name, cData.start, cData.trimOffset, cData.duration);
+                            })
+                            .catch(e => {
+                                console.error("Audio letöltési hiba:", e);
+                                ghostClip.style.border = '1px dashed #ff4c4c';
+                                ghostClip.innerHTML = `<div style="font-size:9px; color:#ff4c4c; font-family:var(--font-mono); width:100%; text-align:center; padding-top:10px;">FETCH ERROR</div>`;
+                            });
                     }
                 }
             });
