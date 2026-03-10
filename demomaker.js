@@ -61,34 +61,43 @@ const scRelease = Math.exp(-1 / (audioCtx.sampleRate * 0.150));
 
 scAnalyzer.onaudioprocess = (e) => {
     const input = e.inputBuffer.getChannelData(0);
-    let sum = 0;
+    
+    // --- RMS HELYETT PEAK (CSÚCS) DETEKTÁLÁS ---
+    let maxPeak = 0;
     for (let i = 0; i < input.length; i++) {
-        sum += input[i] * input[i];
+        const absVal = Math.abs(input[i]);
+        if (absVal > maxPeak) maxPeak = absVal;
     }
-    let rms = Math.sqrt(sum / input.length);
 
     // Optikai burkológörbe követő (Envelope Follower)
-    if (rms > scCurrentEnv) {
-        scCurrentEnv = scAttack * scCurrentEnv + (1 - scAttack) * rms;
+    if (maxPeak > scCurrentEnv) {
+        scCurrentEnv = scAttack * scCurrentEnv + (1 - scAttack) * maxPeak;
     } else {
-        scCurrentEnv = scRelease * scCurrentEnv + (1 - scRelease) * rms;
+        scCurrentEnv = scRelease * scCurrentEnv + (1 - scRelease) * maxPeak;
     }
 
-    // sávok kompresszálása dobon kívül
+    // Digitális zajzár a "szellem" kompresszió ellen
+    // Ha a jelszint gyakorlatilag nulla, azonnal elvágjuk.
+    if (scCurrentEnv < 0.001) {
+        scCurrentEnv = 0;
+    }
+
+    // Sávok kompresszálása dobon kívül
     document.querySelectorAll('.track-container:not(.drum)').forEach(track => {
         if (track.scGainNode) {
             const scInput = track.querySelector('.trk-sc-slider');
             const amount = scInput ? parseInt(scInput.value) / 100 : 0;
             
-            if (amount > 0) {
-                // A dob RMS erejét megszorozzuk az 'Amount' csúszkával
-                let reduction = scCurrentEnv * 5 * amount; 
-                if (reduction > 0.9) reduction = 0.9; // Max 90%-os némítás a digitális pattanások elkerülésére
+            if (amount > 0 && scCurrentEnv > 0) {
+                // Mivel a Peak érték jóval nagyobb az RMS-nél (hamar eléri az 1.0-át),
+                // a szorzót visszavesszük 2.5 - 3.0 környékére, hogy zenei maradjon.
+                let reduction = scCurrentEnv * 3.0 * amount; 
+                if (reduction > 0.95) reduction = 0.95; // Max 95%-os némítás
                 
                 const targetGain = 1.0 - reduction;
-                // setTargetAtTime biztosítja a sima analóg átmenetet, hogy ne pattogjon a hang
                 track.scGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.01);
             } else {
+                // Ha nincs bejövő jel, azonnal álljon vissza az eredeti hangerőre
                 track.scGainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.01);
             }
         }
@@ -240,10 +249,23 @@ function drawPattern(canvas, clip, color) {
     const isDrum = clip.closest('.track-container').classList.contains('drum');
 
     if (!isDrum) {
-        // --- PIANO ROLL RAJZOLÁS (24 billentyű: C3 - B4) ---
-        const minNote = 48; // C3
-        const maxNote = 71; // B4
-        const numNotes = maxNote - minNote + 1; // 24 sor
+        // --- PIANO ROLL RAJZOLÁS DINAMIKUS HATÁROKKAL ---
+        const trackContainer = clip.closest('.track-container');
+        const isBass = trackContainer.classList.contains('bass');
+        const isSynth = trackContainer.classList.contains('synth');
+
+        let minNote = 36; // C2 (Alap min)
+        let maxNote = 71; // B4 (Alap max)
+
+        if (isBass) {
+            minNote = 24; // C1
+            maxNote = 59; // B3
+        } else if (isSynth) {
+            minNote = 36; // C2
+            maxNote = 83; // B5
+        }
+
+        const numNotes = maxNote - minNote + 1; 
         const rowHeight = height / numNotes;
 
         if (clip.patternData && clip.patternData.notes) {
@@ -251,11 +273,14 @@ function drawPattern(canvas, clip, color) {
                 const x = noteEvent.start * PX_PER_SECOND;
                 const w = Math.max(3, noteEvent.duration * PX_PER_SECOND); 
                 
-                const row = maxNote - noteEvent.note; 
-                const y = row * rowHeight;
-                
-                ctx.fillStyle = color;
-                ctx.fillRect(x, y + 1, w - 1, rowHeight - 2);
+                // Csak akkor rajzoljuk ki a kottára, ha beleesik a látható tartományba
+                if (noteEvent.note >= minNote && noteEvent.note <= maxNote) {
+                    const row = maxNote - noteEvent.note; 
+                    const y = row * rowHeight;
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y + 1, w - 1, rowHeight - 2);
+                }
             });
         }
     } else {
@@ -336,7 +361,16 @@ function handleResizeMove(clientX) {
             resizeTarget.dataset.duration = newWidth / PX_PER_SECOND;
             
             const canvas = resizeTarget.querySelector('canvas');
-            if (canvas) canvas.style.width = `${newWidth}px`;
+            if (canvas) {
+                // 1. Frissítjük a valós pixel felbontást, hogy ne "gumiként" nyúljon
+                canvas.width = Math.min(newWidth, 16384);
+                canvas.style.width = `${newWidth}px`;
+                
+                // 2. Azonnal újrarajzoljuk a kottát a helyes (fix) pozíciókra!
+                const trackContainer = resizeTarget.closest('.track-container');
+                const waveColor = getTrackColor(trackContainer);
+                drawPattern(canvas, resizeTarget, waveColor);
+            }
         } else {
             // Hangfájl esetén nem húzható túl a saját hosszán
             const maxDuration = resizeTarget.audioBuffer.duration - resizeStartTrim;
@@ -803,11 +837,25 @@ function openPianoRoll(clip) {
     if (!trackContainer.dataset.preset) trackContainer.dataset.preset = presetSelector.value;
     presetSelector.onchange = (e) => { trackContainer.dataset.preset = e.target.value; };
     
+    const isBass = trackContainer.classList.contains('bass');
+    const isSynth = trackContainer.classList.contains('synth');
+
+    let startOct = 4;
+    let endOct = 2; // Alapból 3 oktáv
+    
+    if (isBass) {
+        startOct = 3;
+        endOct = 1; // Basszus: mélyebb tartomány (3, 2, 1)
+    } else if (isSynth) {
+        startOct = 5;
+        endOct = 2; // Synth: szélesebb, 4 oktáv (5, 4, 3, 2)
+    }
+
     const notes = [];
     const noteNames = ['B','A#','A','G#','G','F#','F','E','D#','D','C#','C'];
     const isBlack = [false, true, false, true, false, true, false, false, true, false, true, false];
     
-    for(let oct = 4; oct >= 3; oct--) {
+    for(let oct = startOct; oct >= endOct; oct--) {
         for(let i = 0; i < 12; i++) {
             notes.push({
                 name: noteNames[i] + oct,
@@ -1020,15 +1068,33 @@ document.addEventListener('click', e => {
     if (editBtn) {
         const trackContainer = editBtn.closest('.track-container');
         const isDrum = trackContainer.classList.contains('drum');
-        const selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
+        let selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
         
+        // --- ÚJ OKOS LOGIKA ---
+        // Ha nincs explicit kijelölve klip, CSAK azt nézzük meg, mi van a piros lejátszófej (Playhead) alatt:
+        if (!selectedClip) {
+            const allClips = Array.from(trackContainer.querySelectorAll('.audio-clip'));
+            selectedClip = allClips.find(c => {
+                const start = parseFloat(c.dataset.start);
+                const end = start + parseFloat(c.dataset.duration);
+                return currentPlayTime >= start && currentPlayTime <= end; 
+            });
+            
+            // Ha sikeresen kitaláltuk, vizuálisan is kijelöljük neki
+            if (selectedClip) {
+                document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+                selectedClip.classList.add('selected-clip');
+            }
+        }
+        // --- ÚJ LOGIKA VÉGE ---
+
         if (selectedClip) {
             if (selectedClip.dataset.type === 'pattern') {
                 if (isDrum) openDrumEditor(selectedClip); 
                 else openPianoRoll(selectedClip);         
             }
         } else {
-            // NINCS KIJELÖLVE SEMMI: Hozunk létre egy új Pattern Klipet!
+            // NINCS KIJELÖLVE SEMMI ÉS A PLAYHEAD ALATT SINCS KLIP: Hozunk létre egy új Pattern Klipet!
             let startTime = currentPlayTime;
             const snapPx = getSnapPx();
             if (snapPx > 0) {
@@ -1046,7 +1112,7 @@ document.addEventListener('click', e => {
                newClip.patternData.notes.push({note: 38, start: secPerBeat*3, duration: 0.1, velocity: 100}); 
             }
 
-            // SZÍNEZÉS AZ OKOS FÜGGVÉNNYEL!
+            // Színezés okosan
             const waveColor = getTrackColor(trackContainer);
             drawPattern(newClip.querySelector('canvas'), newClip, waveColor);
 
@@ -1055,6 +1121,10 @@ document.addEventListener('click', e => {
                 document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
                 newClip.classList.add('selected-clip');
             }
+            
+            // Extra UX: Az újonnan létrehozott klipet is egyből nyissuk meg!
+            if (isDrum) openDrumEditor(newClip); 
+            else openPianoRoll(newClip);
         }
         return;
     }
@@ -1523,9 +1593,9 @@ function performDuplicate(e) {
             // 2. DEEP COPY: Teljesen független másolatot készítünk a "kottáról" (JSON trükk)
             newClip.patternData.notes = JSON.parse(JSON.stringify(selected.patternData.notes));
             
-            // 3. Kirajzoljuk rá a másolt kis bogyókat
+            // 3. Kirajzoljuk rá a másolt kis bogyókat a HELYES sávszínnel
             const trackContainer = parent.closest('.track-container');
-            const color = (trackContainer && trackContainer.classList.contains('synth')) ? '#b084f7' : '#3fa9f5';
+            const color = getTrackColor(trackContainer);
             drawPattern(newClip.querySelector('canvas'), newClip, color);
 
         } else {
@@ -2479,12 +2549,14 @@ function addPatternClipToTrack(container, name, startTime, lengthInBars = 1) {
     //leftHandle.className = 'resize-handle left';
     //leftHandle.onmousedown = (e) => initResize(e, leftHandle, clip);
     
-    //const rightHandle = document.createElement('div');
-    //rightHandle.className = 'resize-handle right';
-    //rightHandle.onmousedown = (e) => initResize(e, rightHandle, clip);
+    // 3. Resize fül (Csak a jobb oldali, hogy lehessen szélesíteni tempóváltáskor)
+    const rightHandle = document.createElement('div');
+    rightHandle.className = 'resize-handle right';
+    rightHandle.onmousedown = (e) => initResize(e, rightHandle, clip);
+    rightHandle.ontouchstart = (e) => initResize(e, rightHandle, clip);
     
     //clip.appendChild(leftHandle);
-    //clip.appendChild(rightHandle);
+    clip.appendChild(rightHandle);
 
     container.appendChild(clip);
 
