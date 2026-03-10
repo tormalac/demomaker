@@ -3120,19 +3120,47 @@ window.addEventListener('beforeunload', (e) => {
     }
 });
 
-// --- PROJEKT MENTÉSE (SERIALIZÁCIÓ) ---
-window.serializeProject = function() {
-    const project = {
-        bpm: bpm,
-        timeSig: timeSig,
-        tracks: []
-    };
+// --- AUDIO SEGÉDFÜGGVÉNYEK A MENTÉSHEZ ---
+function audioBufferToWavBlob(buffer) {
+    const left = [new Float32Array(buffer.getChannelData(0))];
+    const right = buffer.numberOfChannels > 1 ? [new Float32Array(buffer.getChannelData(1))] : [new Float32Array(buffer.getChannelData(0))];
+    return exportToWav(left, right, buffer.length, buffer.sampleRate);
+}
 
-    document.querySelectorAll('.track-container').forEach(track => {
+function blobToBase64(blob) {
+    return new Promise((resolve, _) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+    });
+}
+
+// --- AUDIO SEGÉDFÜGGVÉNYEK A MENTÉSHEZ ---
+function audioBufferToWavBlob(buffer) {
+    const left = [new Float32Array(buffer.getChannelData(0))];
+    const right = buffer.numberOfChannels > 1 ? [new Float32Array(buffer.getChannelData(1))] : [new Float32Array(buffer.getChannelData(0))];
+    return exportToWav(left, right, buffer.length, buffer.sampleRate);
+}
+
+function blobToBase64(blob) {
+    return new Promise((resolve, _) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+    });
+}
+
+// --- PROJEKT MENTÉSE (SERIALIZÁCIÓ) - FELHŐ/LOKÁL LOGIKÁVAL ---
+window.serializeProject = async function(isCloudSave = false) {
+    const project = { bpm: bpm, timeSig: timeSig, tracks: [] };
+    let uploadedFileIds = []; // Ide gyűjtjük a Cloudinary azonosítókat a későbbi törléshez!
+
+    const tracks = document.querySelectorAll('.track-container');
+    for (let track of tracks) {
         const trackData = {
-            type: track.classList[1], // pl. 'drum', 'synth', 'guitar'
+            type: track.classList[1],
             name: track.querySelector('.track-name').textContent,
-            preset: track.dataset.preset || '', // A kiválasztott szinti/dob hangszín
+            preset: track.dataset.preset || '',
             vol: track.querySelector('.trk-vol-slider') ? track.querySelector('.trk-vol-slider').value : 80,
             pan: track.querySelector('.trk-pan-slider') ? track.querySelector('.trk-pan-slider').value : 0,
             scAmount: track.querySelector('.trk-sc-slider') ? track.querySelector('.trk-sc-slider').value : 0,
@@ -3140,43 +3168,133 @@ window.serializeProject = function() {
             fxChain: []
         };
 
-        // 1. Kották (Pattern klipek) mentése
-        track.querySelectorAll('.audio-clip').forEach(clip => {
+        const clips = track.querySelectorAll('.audio-clip');
+        for (let clip of clips) {
             if (clip.dataset.type === 'pattern' && clip.patternData) {
                 trackData.clips.push({
                     type: 'pattern',
                     start: parseFloat(clip.dataset.start),
                     duration: parseFloat(clip.dataset.duration),
-                    patternData: JSON.parse(JSON.stringify(clip.patternData)) // Kotta adatok Deep Copy-ja
+                    patternData: JSON.parse(JSON.stringify(clip.patternData)) 
                 });
+            } else if (clip.audioBuffer) {
+                const wavBlob = audioBufferToWavBlob(clip.audioBuffer);
+                
+                if (isCloudSave) {
+                    // --- 1. IGAZI CLOUD MENTÉS: FELTÖLTÉS CLOUDINARY-RE! ---
+                    const formData = new FormData();
+                    formData.append("file", wavBlob, clip.querySelector('.clip-name').textContent + ".wav");
+                    
+                    try {
+                        const response = await fetch("https://music-backend-jq1s.onrender.com/upload", {
+                            method: "POST", body: formData
+                        });
+                        const data = await response.json();
+                        
+                        trackData.clips.push({
+                            type: 'audio',
+                            name: clip.querySelector('.clip-name').textContent,
+                            start: parseFloat(clip.dataset.start),
+                            duration: parseFloat(clip.dataset.duration),
+                            trimOffset: parseFloat(clip.dataset.trimOffset || 0),
+                            audioData: data.url // CSAK A LINKET MENTJÜK! (Így marad pici a JSON)
+                        });
+                        // Eltároljuk az ID-t, hogy törölni tudjuk majd
+                        uploadedFileIds.push(data.public_id); 
+                    } catch (e) {
+                        console.error("Hiba az audio feltöltésekor:", e);
+                    }
+                } else {
+                    // --- 2. LOKÁLIS MENTÉS: Base64-be sütve (Save to PC) ---
+                    const base64Audio = await blobToBase64(wavBlob);
+                    trackData.clips.push({
+                        type: 'audio',
+                        name: clip.querySelector('.clip-name').textContent,
+                        start: parseFloat(clip.dataset.start),
+                        duration: parseFloat(clip.dataset.duration),
+                        trimOffset: parseFloat(clip.dataset.trimOffset || 0),
+                        audioData: base64Audio 
+                    });
+                }
             }
-        });
+        }
 
-        // 2. Effekt lánc (FX) és potméterek állásának mentése
         if (track.fxChain) {
             track.fxChain.forEach(fxItem => {
                 const pluginState = { name: fxItem.name, params: {} };
-                
-                // Hagyományos potméterek kimentése
-                fxItem.ui.querySelectorAll('.knob').forEach(knob => {
-                    pluginState.params[knob.dataset.param] = knob.dataset.val;
-                });
-                
-                // LA-2A kapcsoló kimentése
+                fxItem.ui.querySelectorAll('.knob').forEach(knob => { pluginState.params[knob.dataset.param] = knob.dataset.val; });
                 const toggle = fxItem.ui.querySelector('.toggle-switch');
                 if (toggle) pluginState.params['mode'] = toggle.dataset.val;
-                
-                // L-MAX Maximizer csúszkák kimentése
-                fxItem.ui.querySelectorAll('.max-slider').forEach(slider => {
-                    pluginState.params[slider.id] = slider.value;
-                });
-
+                fxItem.ui.querySelectorAll('.max-slider').forEach(slider => { pluginState.params[slider.id] = slider.value; });
                 trackData.fxChain.push(pluginState);
             });
         }
-
         project.tracks.push(trackData);
-    });
+    }
 
+    // Ha felhőbe mentünk, visszaadjuk a fájlok listáját is a törlő funkcióhoz!
+    if (isCloudSave) return { projectData: project, uploadedFileIds };
     return project;
 };
+
+// ==========================================================
+// --- ÚJ PROJEKT (NEW) GOMB LOGIKÁJA ---
+// ==========================================================
+const newProjectBtn = Array.from(document.querySelectorAll('.project-btn')).find(b => b.textContent === 'New');
+
+if (newProjectBtn) {
+    newProjectBtn.addEventListener('click', () => {
+        const hasTracks = document.querySelectorAll('.track-container').length > 0;
+        
+        // 1. Biztonsági rákérdezés, ha már van sáv a projektben
+        if (hasTracks) {
+            if (!confirm("Biztosan új projektet kezdesz? Minden nem mentett változtatásod elvész!")) {
+                return;
+            }
+        }
+
+        // 2. Lejátszás és felvétel azonnali leállítása
+        if (typeof stopPlayback === 'function') stopPlayback();
+        
+        // 3. Minden sáv kigyomlálása a DOM-ból ÉS a memóriából (AudioContext)
+        document.querySelectorAll('.track-container').forEach(track => {
+            // Audio node-ok leválasztása a memóriaszivárgás ellen
+            if (track.trackGainNode) track.trackGainNode.disconnect();
+            if (track.trackPannerNode) track.trackPannerNode.disconnect();
+            if (track.analyserNode) track.analyserNode.disconnect();
+            if (track.fxOutputNode) track.fxOutputNode.disconnect();
+            track.remove();
+        });
+        
+        // Keverő csatornák törlése (kivéve a Master)
+        document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
+
+        // 4. Globális változók és UI resetelése
+        trackCounter = 0;
+        bpm = 120;
+        timeSig = [4, 4];
+        currentPlayTime = 0;
+        startOffset = 0;
+        
+        document.querySelector('.bpm-input').value = 120;
+        document.querySelector('.time-signature-input').value = '4/4';
+        document.getElementById('timelineRuler').style.display = 'none';
+        
+        // 5. Master csatorna resetelése (Hangerő 80%, Pan középen)
+        masterGain.gain.value = 0.8;
+        masterPanner.pan.value = 0;
+        const masterVolSlider = document.querySelector('.master-vol-slider');
+        const masterPanSlider = document.querySelector('.master-pan-slider');
+        if (masterVolSlider) masterVolSlider.value = 80;
+        if (masterPanSlider) masterPanSlider.value = 0;
+        const masterVolVal = document.querySelector('.master-vol-val');
+        if (masterVolVal) masterVolVal.textContent = '80%';
+
+        // 6. Nézet (Scroll és Playhead) visszaállítása a nullára
+        if (typeof setScroll === 'function') setScroll(0);
+        updatePlayheadVisuals();
+        
+        // 7. Adunk egy friss, üres sávot indulásként (mint a program legelső megnyitásakor)
+        createTrack('guitar');
+    });
+}
