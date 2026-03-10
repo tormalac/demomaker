@@ -3189,20 +3189,35 @@ window.serializeProject = async function(isCloudSave = false) {
                         const response = await fetch("https://music-backend-jq1s.onrender.com/upload", {
                             method: "POST", body: formData
                         });
+                        
+                        if (!response.ok) throw new Error("Szerver hiba a feltöltésnél: " + response.status);
+                        
                         const data = await response.json();
                         
+                        if (data.url) {
+                            trackData.clips.push({
+                                type: 'audio',
+                                name: clip.querySelector('.clip-name').textContent,
+                                start: parseFloat(clip.dataset.start),
+                                duration: parseFloat(clip.dataset.duration),
+                                trimOffset: parseFloat(clip.dataset.trimOffset || 0),
+                                audioData: data.url // SIKERES LINK MENTÉSE
+                            });
+                            uploadedFileIds.push(data.public_id); 
+                        } else {
+                            throw new Error("Nincs URL a szerver válaszában.");
+                        }
+                    } catch (e) {
+                        console.error("Hiba az audio feltöltésekor:", e);
+                        // HA HIBA VAN, AKKOR IS ELMENTJÜK A KLIPET ÜRES LINKKEL, HOGY LÁSSUK A DIAGNOSZTIKÁT!
                         trackData.clips.push({
                             type: 'audio',
                             name: clip.querySelector('.clip-name').textContent,
                             start: parseFloat(clip.dataset.start),
                             duration: parseFloat(clip.dataset.duration),
                             trimOffset: parseFloat(clip.dataset.trimOffset || 0),
-                            audioData: data.url // CSAK A LINKET MENTJÜK! (Így marad pici a JSON)
+                            audioData: "" // Direkt üres, hogy dobja az "UPLOAD FAILED" hibát betöltéskor
                         });
-                        // Eltároljuk az ID-t, hogy törölni tudjuk majd
-                        uploadedFileIds.push(data.public_id); 
-                    } catch (e) {
-                        console.error("Hiba az audio feltöltésekor:", e);
                     }
                 } else {
                     // --- 2. LOKÁLIS MENTÉS: Base64-be sütve (Save to PC) ---
