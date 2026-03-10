@@ -152,7 +152,6 @@
     </div>
 
     <main>
-
         <div class="track-list" id="trackList">
            <div class="timeline-ruler" id="timelineRuler">
                <div class="ruler-inner" id="rulerInner">
@@ -178,7 +177,6 @@
              </label>
             </div>
         </div>
-
     </main>
 
     <div class="mixer-panel" id="mixerPanel">
@@ -208,7 +206,17 @@
         </div>
     </div>
 
-    
+   <div id="cloud-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 4000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div style="background: #111; border: 1px solid var(--accent); border-radius: 6px; width: 90%; max-width: 600px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin: 0; font-family: var(--font-mono); color: var(--accent); text-transform: uppercase;">Cloud Projects</h2>
+                <button id="close-cloud-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">×</button>
+            </div>
+            <div id="cloud-project-list" style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+                <div style="color: #888; text-align: center; font-family: var(--font-mono);">Loading...</div>
+            </div>
+        </div>
+    </div>
 
     <footer>
         © 2026 demoMaker – Tape vibes. Modern tools.
@@ -226,23 +234,19 @@
             <button id="close-seq-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">×</button>
         </div>
         
-        <div id="seq-grid" style="display: flex; flex-direction: column; gap: 4px; overflow-x: auto;">
-            </div>
-
+        <div id="seq-grid" style="display: flex; flex-direction: column; gap: 4px; overflow-x: auto;"></div>
     </div>
 </div>
  </div>
 
 <script src="fx-engine.js"></script> 
-
 <script src="demomaker.js"></script> 
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
-// --- Firebase Konfiguráció ---
 const firebaseConfig = {
   apiKey: "AIzaSyDFK6o6sJnFJImBhkX_ZfQq6fXldLZt7vA",
   authDomain: "calendarformeapp.firebaseapp.com",
@@ -253,6 +257,7 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 // --- Auth ---
 const emailInput = document.getElementById('email');
@@ -273,7 +278,7 @@ logoutBtn.onclick = async () => { await signOut(auth); };
 
 authStatusButton.onclick = () => { authDropdown.classList.toggle("open"); };
 document.addEventListener("click", (e) => {
-    if (!authBox.contains(e.target)) authDropdown.classList.remove("open");
+    if (!document.getElementById('authBox').contains(e.target)) authDropdown.classList.remove("open");
 });
 onAuthStateChanged(auth, user => {
     if (user) {
@@ -285,79 +290,187 @@ onAuthStateChanged(auth, user => {
     }
 });
 
-
-// --- Cloud mentés ---
+// --- CLOUD MENTÉS (RENDER + FIREBASE FIRESTORE) ---
 document.querySelectorAll('.project-btn').forEach(btn => {
     if (btn.textContent === 'Cloud') {
         btn.onclick = async () => {
+            const user = auth.currentUser;
+            if (!user) {
+                alert("A felhőbe mentéshez be kell jelentkezned!");
+                return;
+            }
+
+            const projectName = prompt("Adj egy nevet a dalnak:", "My Awesome Track");
+            if (!projectName) return;
+
             const originalText = btn.textContent;
-            btn.textContent = 'Saving...';
-            btn.style.color = '#00ffd5'; 
-
+            
             try {
-                // 1. Projekt adatok JSON-ná alakítása
-                const projectData = window.serializeProject(); 
+                btn.textContent = 'Uploading Audio...';
+                btn.style.color = '#ffd93d'; 
+                const { projectData, uploadedFileIds } = await window.serializeProject(true); 
+
+                btn.textContent = 'Saving Project...';
+                btn.style.color = '#00ffd5';
+                
                 const jsonString = JSON.stringify(projectData);
-
-                // 2. Blob fájl létrehozása
                 const blob = new Blob([jsonString], { type: 'application/json' });
-
-                // 3. FormData összerakása (A Multer a "file" kulcsot várja)
                 const formData = new FormData();
                 formData.append("file", blob, "demomaker_project.json");
 
-                // 4. Küldés a TE RENDER BACKENDEDRE! 
-                // (Írd át a saját Render URL-edre)
                 const backendUrl = "https://music-backend-jq1s.onrender.com/upload-project";
-                
-                const response = await fetch(backendUrl, {
-                    method: "POST",
-                    body: formData
-                });
-
-                // 1. NE egyből json()-t csináljunk, hanem olvassuk be nyers szövegként!
-                const responseText = await response.text();
-                
-                // 2. Írjuk ki a konzolba, hátha egy beszédes hibaoldal (pl. "Not Found")
-                console.log("A szerver nyers válasza:", responseText);
-
-                if (!response.ok) {
-                    throw new Error(`Szerver hiba kód: ${response.status}. Nézd meg a böngésző konzolját (F12)!`);
-                }
-
-                // 3. Ha minden OK, akkor csinálunk belőle JSON-t
-                const data = JSON.parse(responseText);
+                const response = await fetch(backendUrl, { method: "POST", body: formData });
+                const data = await response.json();
 
                 if (data.url) {
-                    console.log("Projekt mentve! URL:", data.url);
-                    
-                    try {
-                        // Megpróbáljuk automatikusan a vágólapra másolni
-                        await navigator.clipboard.writeText(data.url);
-                        alert("A projekt sikeresen mentve a felhőbe!\n\nA link automatikusan a vágólapodra lett másolva:\n" + data.url);
-                    } catch (err) {
-                        // Ha a böngésző nem engedi az auto-másolást, adunk egy kijelölhető szövegdobozt
-                        prompt("A projekt sikeresen mentve a felhőbe!\nMásold ki az alábbi linket (Ctrl+C / Hosszan nyomás):", data.url);
-                    }
-                }
+                    uploadedFileIds.push(data.public_id);
 
+                    await addDoc(collection(db, "projects"), {
+                        uid: user.uid,
+                        name: projectName,
+                        url: data.url,
+                        fileIds: uploadedFileIds, 
+                        createdAt: new Date().toISOString()
+                    });
+                    alert(`A "${projectName}" sikeresen mentve a fiókodba!`);
+                }
             } catch(e) {
                 console.error(e);
                 alert("Hiba a mentésnél: " + e.message);
             }
-
-            // Gomb visszaállítása
             btn.textContent = originalText;
             btn.style.color = '';
         };
     }
+    
+    // --- LOKÁLIS MENTÉS (Save to PC) ---
+    if (btn.textContent === 'Save') {
+        btn.onclick = async () => {
+            try {
+                const projectData = await window.serializeProject(false); 
+                const jsonString = JSON.stringify(projectData, null, 2); 
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none'; a.href = url; a.download = 'demomaker_project.json';
+                document.body.appendChild(a); a.click();
+                URL.revokeObjectURL(url); document.body.removeChild(a);
+            } catch (err) { alert("Hiba a mentés során: " + err.message); }
+        };
+    }
 });
+
+// --- CLOUD MANAGER UI (Betöltés, Törlés, Duplikálás) ---
+const cloudModal = document.getElementById('cloud-modal-overlay');
+const cloudList = document.getElementById('cloud-project-list');
+document.getElementById('close-cloud-btn').onclick = () => cloudModal.style.display = 'none';
+
+document.getElementById('openCloudBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    document.getElementById('openPicker').classList.remove('show');
+    
+    const user = auth.currentUser;
+    if (!user) {
+        alert("A projektjeid megtekintéséhez be kell jelentkezned!");
+        return;
+    }
+
+    cloudModal.style.display = 'flex';
+    loadCloudProjects(user.uid);
+});
+
+async function loadCloudProjects(uid) {
+    cloudList.innerHTML = '<div style="color: #888; text-align: center;">Loading projects...</div>';
+    
+    try {
+        const q = query(collection(db, "projects"), where("uid", "==", uid));
+        const querySnapshot = await getDocs(q);
+        
+        cloudList.innerHTML = '';
+        if (querySnapshot.empty) {
+            cloudList.innerHTML = '<div style="color: #888; text-align: center;">Még nincs mentett projekted.</div>';
+            return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const dateStr = new Date(data.createdAt).toLocaleString();
+            
+            const row = document.createElement('div');
+            row.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; font-family: var(--font-mono);";
+            
+            row.innerHTML = `
+                <div>
+                    <div style="color: var(--accent); font-weight: bold;">${data.name}</div>
+                    <div style="font-size: 0.7rem; color: #888;">${dateStr}</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="cloud-action-btn load-btn" style="background: rgba(0,255,213,0.1); border: 1px solid var(--accent); color: var(--accent); cursor: pointer; padding: 4px 8px; border-radius: 2px;">Load</button>
+                    <button class="cloud-action-btn dup-btn" style="background: rgba(255,217,61,0.1); border: 1px solid #ffd93d; color: #ffd93d; cursor: pointer; padding: 4px 8px; border-radius: 2px;">Copy</button>
+                    <button class="cloud-action-btn del-btn" style="background: rgba(255,76,76,0.1); border: 1px solid #ff4c4c; color: #ff4c4c; cursor: pointer; padding: 4px 8px; border-radius: 2px;">Del</button>
+                </div>
+            `;
+
+            // Betöltés
+            row.querySelector('.load-btn').onclick = async () => {
+                cloudModal.style.display = 'none';
+                try {
+                    const response = await fetch(data.url);
+                    const projectData = await response.json();
+                    window.loadProject(projectData);
+                } catch(e) { alert("Hiba a betöltéskor: " + e.message); }
+            };
+
+            // Duplikálás
+            row.querySelector('.dup-btn').onclick = async () => {
+                const newName = prompt("Új másolat neve:", data.name + " (Copy)");
+                if (!newName) return;
+                await addDoc(collection(db, "projects"), {
+                    uid: uid,
+                    name: newName,
+                    url: data.url, 
+                    createdAt: new Date().toISOString()
+                });
+                loadCloudProjects(uid); 
+            };
+
+            // Törlés
+            row.querySelector('.del-btn').onclick = async (e) => {
+                const btn = e.target;
+                if(confirm(`Biztos törlöd a "${data.name}" projektet? Minden felvett hangfájl is végleg törlődik a felhőből!`)) {
+                    btn.textContent = "Wait...";
+                    btn.style.opacity = "0.5";
+                    
+                    if (data.fileIds && data.fileIds.length > 0) {
+                        for (let pubId of data.fileIds) {
+                            try {
+                                const encodedId = encodeURIComponent(pubId);
+                                await fetch(`https://music-backend-jq1s.onrender.com/delete/${encodedId}`, { 
+                                    method: 'DELETE' 
+                                });
+                            } catch(err) {
+                                console.warn("Nem sikerült törölni egy fájlt:", pubId);
+                            }
+                        }
+                    }
+
+                    await deleteDoc(doc(db, "projects", docSnap.id));
+                    loadCloudProjects(uid); 
+                }
+            };
+
+            cloudList.appendChild(row);
+        });
+    } catch(e) {
+         cloudList.innerHTML = `<div style="color: red; text-align: center;">Hiba az adatbázis elérésekor.</div>`;
+    }
+}
+
 
 // --- PROJEKT BETÖLTÉSE (DESERIALIZÁCIÓ) ---
 window.loadProject = async function(projectData) {
     if (!projectData || !projectData.tracks) return;
 
-    // 1. Tiszta lap: Töröljük a jelenlegi sávokat
     document.querySelectorAll('.track-container').forEach(t => t.remove());
     document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
     trackCounter = 0;
@@ -365,7 +478,6 @@ window.loadProject = async function(projectData) {
     const rulerEl = document.getElementById('timelineRuler');
     rulerEl.style.display = 'none';
 
-    // 2. Globális beállítások (BPM, Ütemmutató)
     if (projectData.bpm) {
         bpm = projectData.bpm;
         document.querySelector('.bpm-input').value = bpm;
@@ -375,22 +487,18 @@ window.loadProject = async function(projectData) {
         document.querySelector('.time-signature-input').value = `${timeSig[0]}/${timeSig[1]}`;
     }
 
-    // 3. Sávok újraépítése
     for (const tData of projectData.tracks) {
-        createTrack(tData.type); // Létrehozza a HTML-t és a DSP láncot
+        createTrack(tData.type); 
         
-        // A legutoljára létrehozott sáv az, amivel épp dolgozunk
         const tracks = document.querySelectorAll('.track-container');
         const newTrack = tracks[tracks.length - 1];
         const trackId = newTrack.dataset.trackId;
         const mixerChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
 
-        // Név és Preset
         newTrack.querySelector('.track-name').textContent = tData.name;
         if (mixerChan) mixerChan.querySelector('.mix-header').textContent = tData.name;
         newTrack.dataset.preset = tData.preset || '';
 
-        // Csúszkák (Vol, Pan) beállítása
         const volSlider = newTrack.querySelector('.trk-vol-slider');
         if (volSlider && tData.vol !== undefined) {
             volSlider.value = tData.vol;
@@ -410,7 +518,6 @@ window.loadProject = async function(projectData) {
             if (newTrack.trackPannerNode) newTrack.trackPannerNode.pan.value = tData.pan / 50;
         }
 
-        // Sidechain / Pump beállítása
         const scSlider = newTrack.querySelector('.trk-sc-slider');
         if (scSlider && tData.scAmount !== undefined) {
             scSlider.value = tData.scAmount;
@@ -422,34 +529,38 @@ window.loadProject = async function(projectData) {
             }
         }
 
-        // Kották (Pattern Klipek) visszaállítása
         const clipsContainer = newTrack.querySelector('.clips');
         if (tData.clips) {
-            tData.clips.forEach(cData => {
+            tData.clips.forEach(async cData => {
                 if (cData.type === 'pattern') {
                     const newClip = addPatternClipToTrack(clipsContainer, "Pattern", cData.start, cData.patternData.lengthInBars);
-                    newClip.patternData = cData.patternData; // Visszaírjuk a kottát
+                    newClip.patternData = cData.patternData; 
                     newClip.dataset.duration = cData.duration;
                     newClip.style.width = `${cData.duration * PX_PER_SECOND}px`;
                     
-                    // Újrarajzoljuk a bogyókat a sávon
                     let waveColor = '#b084f7';
                     if (tData.type === 'drum') waveColor = '#3fa9f5';
                     else if (tData.type === 'bass') waveColor = '#ffd93d';
                     else if (tData.type === 'guitar') waveColor = '#00ffd5';
                     else if (tData.type === 'vocal') waveColor = '#ff7ac8';
                     else if (tData.type === 'sample') waveColor = '#ff8c00';
-                    else if (tData.type === 'synth') waveColor = '#b084f7';
                     
                     const canvas = newClip.querySelector('canvas');
-                    canvas.width = cData.duration * PX_PER_SECOND;
+                    canvas.width = Math.min(cData.duration * PX_PER_SECOND, 16384);
                     drawPattern(canvas, newClip, waveColor);
+
+                } else if (cData.type === 'audio' && cData.audioData) {
+                    try {
+                        const response = await fetch(cData.audioData);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                        addClipToTrack(clipsContainer, audioBuffer, cData.name, cData.start, cData.trimOffset, cData.duration);
+                    } catch (e) {
+                        console.error("Nem sikerült dekódolni a hangfájlt:", e);
+                    }
                 }
             });
         }
-        
-        // --- PRO TIPP: Az effektek visszaépítését ideális esetben itt csinálnánk 
-        // egy pluginMapper segítségével, de ez az alapszerkezet is hibátlanul beolvassa a DAW-ot! ---
     }
 
     drawRuler();
@@ -457,49 +568,16 @@ window.loadProject = async function(projectData) {
     updateZoomVisibility();
     updatePlayheadVisuals();
     
-    // UI Frissítés
     document.getElementById('openPicker').classList.remove('show');
     alert("Projekt sikeresen betöltve!");
 };
 
-// --- LOKÁLIS MENTÉS (Save to PC) ---
-document.querySelectorAll('.project-btn').forEach(btn => {
-    if (btn.textContent === 'Save') {
-        btn.onclick = () => {
-            try {
-                // 1. Kinyerjük az adatokat
-                const projectData = window.serializeProject(); 
-                const jsonString = JSON.stringify(projectData, null, 2); // Szépen formázott JSON
-                
-                // 2. Fájlt csinálunk belőle a memóriában
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                
-                // 3. Egy láthatatlan linkkel rákényszerítjük a böngészőt a letöltésre
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = 'demomaker_project.json'; // Ez lesz a fájlnév
-                document.body.appendChild(a);
-                a.click();
-                
-                // 4. Takarítás
-                URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            } catch (err) {
-                console.error(err);
-                alert("Hiba a mentés során: " + err.message);
-            }
-        };
-    }
-});
-
-// --- 1. MEGYITÁS GÉPRŐL (Local JSON) ---
+// --- LOKÁLIS FÁJL MEGNYITÁSA (From PC) ---
 const openLocalBtn = document.getElementById('openLocalBtn');
 const projectImportInput = document.getElementById('projectImportInput');
 
 openLocalBtn.addEventListener('click', () => {
-    projectImportInput.click(); // Megnyitja a Windows fájlkezelőt
+    projectImportInput.click();
 });
 
 projectImportInput.addEventListener('change', (e) => {
@@ -516,49 +594,25 @@ projectImportInput.addEventListener('change', (e) => {
         }
     };
     reader.readAsText(file);
-    projectImportInput.value = ''; // Reset
+    projectImportInput.value = ''; 
 });
 
-// --- 2. MEGNYITÁS FELHŐBŐL (Cloudinary URL) ---
-const openCloudBtn = document.getElementById('openCloudBtn');
+// --- OPEN MENÜ (PC / CLOUD) LOGIKÁJA ---
+const openMenuBtn = document.getElementById('openMenuBtn');
+const openPicker = document.getElementById('openPicker');
 
-openCloudBtn.addEventListener('click', async () => {
-    const url = prompt("Kérlek, illeszd be a projekt Cloudinary URL-jét:");
-    
-    if (!url) return;
-    
-    // Biztonsági ellenőrzés
-    if (!url.startsWith("http")) {
-        alert("Ez nem tűnik érvényes URL-nek.");
-        return;
-    }
+if (openMenuBtn && openPicker) {
+    openMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); 
+        openPicker.classList.toggle('show');
+    });
 
-    try {
-        const originalText = openCloudBtn.textContent;
-        openCloudBtn.textContent = 'Loading...';
-        
-        // Letöltjük a JSON fájlt a megadott URL-ről
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Nem sikerült letölteni a projektet.");
-        
-        const projectData = await response.json();
-        
-        // Átadjuk a motornak!
-        window.loadProject(projectData);
-        
-        openCloudBtn.textContent = originalText;
-    } catch (err) {
-        alert("Hiba a felhőből való betöltéskor:\n" + err.message);
-        openCloudBtn.textContent = 'From Cloud';
-    }
-});
-
-document.getElementById('openMenuBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    document.getElementById('openPicker').classList.toggle('show');
-});
-
+    document.addEventListener('click', (e) => {
+        if (!openPicker.contains(e.target) && e.target !== openMenuBtn) {
+            openPicker.classList.remove('show');
+        }
+    });
+}
 </script>
-
 </body>
 </html>
