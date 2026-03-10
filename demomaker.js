@@ -62,24 +62,29 @@ const scRelease = Math.exp(-1 / (audioCtx.sampleRate * 0.150));
 scAnalyzer.onaudioprocess = (e) => {
     const input = e.inputBuffer.getChannelData(0);
     
-    // --- RMS HELYETT PEAK (CSÚCS) DETEKTÁLÁS ---
-    let maxPeak = 0;
+    let maxEnvInThisBuffer = 0;
+
+    // --- JAVÍTÁS: MINTÁNKÉNTI (PER-SAMPLE) BURKOLÓGÖRBE ---
+    // Így már garantáltan nem maradunk le a lábdob milliszekundumos csattanásáról!
     for (let i = 0; i < input.length; i++) {
         const absVal = Math.abs(input[i]);
-        if (absVal > maxPeak) maxPeak = absVal;
-    }
-
-    // Optikai burkológörbe követő (Envelope Follower)
-    if (maxPeak > scCurrentEnv) {
-        scCurrentEnv = scAttack * scCurrentEnv + (1 - scAttack) * maxPeak;
-    } else {
-        scCurrentEnv = scRelease * scCurrentEnv + (1 - scRelease) * maxPeak;
+        
+        if (absVal > scCurrentEnv) {
+            scCurrentEnv = scAttack * scCurrentEnv + (1 - scAttack) * absVal;
+        } else {
+            scCurrentEnv = scRelease * scCurrentEnv + (1 - scRelease) * absVal;
+        }
+        
+        // Eltároljuk a legnagyobb értéket ebből a 23ms-os ablakból
+        if (scCurrentEnv > maxEnvInThisBuffer) {
+            maxEnvInThisBuffer = scCurrentEnv;
+        }
     }
 
     // Digitális zajzár a "szellem" kompresszió ellen
-    // Ha a jelszint gyakorlatilag nulla, azonnal elvágjuk.
     if (scCurrentEnv < 0.001) {
         scCurrentEnv = 0;
+        maxEnvInThisBuffer = 0;
     }
 
     // Sávok kompresszálása dobon kívül
@@ -88,16 +93,20 @@ scAnalyzer.onaudioprocess = (e) => {
             const scInput = track.querySelector('.trk-sc-slider');
             const amount = scInput ? parseInt(scInput.value) / 100 : 0;
             
-            if (amount > 0 && scCurrentEnv > 0) {
-                // Mivel a Peak érték jóval nagyobb az RMS-nél (hamar eléri az 1.0-át),
-                // a szorzót visszavesszük 2.5 - 3.0 környékére, hogy zenei maradjon.
-                let reduction = scCurrentEnv * 3.0 * amount; 
+            // Ha fel van húzva a slider, és jön egy dobütés
+            if (amount > 0 && maxEnvInThisBuffer > 0) {
+                
+                // Mivel most már pontos a matematika, a maxEnv könnyen felugrik 0.8 - 1.0 köré.
+                // Egy 2.0-ás szorzó bőven elég, hogy a padlóig vágja a szintit.
+                let reduction = maxEnvInThisBuffer * 2.0 * amount; 
                 if (reduction > 0.95) reduction = 0.95; // Max 95%-os némítás
                 
                 const targetGain = 1.0 - reduction;
-                track.scGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.01);
+                
+                // Gyorsabb reagálási időre (0.005) állítjuk a kompresszort
+                track.scGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.005);
             } else {
-                // Ha nincs bejövő jel, azonnal álljon vissza az eredeti hangerőre
+                // Azonnal engedje fel a szintit, ha vége a dobnak
                 track.scGainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.01);
             }
         }
