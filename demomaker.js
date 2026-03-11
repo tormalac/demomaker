@@ -3173,10 +3173,19 @@ window.serializeProject = async function(isCloudSave = false) {
 
     // --- 2. CSAK AZ EGYEDI FÁJLOKAT TÖLTJÜK FEL / KÓDOLJUK! ---
     for (const assetId of uniqueAssets) {
-        const buffer = window.audioPool[assetId];
+        let buffer = window.audioPool[assetId]; // <-- FONTOS: 'const' helyett 'let' legyen!
         if (!buffer) continue;
 
-        const wavBlob = audioBufferToWavBlob(buffer);
+        // --- ÚJ: PROMISE VIZSGÁLAT ---
+        // Ha betöltés után egyből mentünk, lehet, hogy a buffer még csak egy "ígéret" (Promise).
+        // Megvárjuk, amíg igazi audió lesz belőle!
+        if (buffer instanceof Promise) {
+            buffer = await buffer;
+            window.audioPool[assetId] = buffer; // Kicseréljük a memóriában is a véglegesre!
+        }
+        // -----------------------------
+
+        const wavBlob = audioBufferToWavBlob(buffer); // Most már biztosan le tud futni!
 
         if (isCloudSave) {
             const formData = new FormData();
