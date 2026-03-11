@@ -32,6 +32,8 @@ const masterPanner = audioCtx.createStereoPanner();
 const masterAnalyser = audioCtx.createAnalyser();
 masterAnalyser.fftSize = 256;
 
+window.audioPool = {};
+
 masterGain.connect(masterPanner);
 masterPanner.connect(masterAnalyser);
 masterAnalyser.connect(audioCtx.destination);
@@ -1541,12 +1543,15 @@ function performCut(e) {
             selected.remove(); 
             
             // 2. BAL OLDALI DARAB létrehozása (a vágópontig)
-            addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative);
+            //addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative);
+            const assetId = selected.dataset.assetId;
+            addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative, assetId);
             
             // 3. JOBB OLDALI DARAB létrehozása (a vágóponttól a végéig)
             const remainingDuration = clipDur - cutPointRelative;
             const newTrimOffset = originalTrim + cutPointRelative;
-            addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration);
+            //addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration);
+            addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration, assetId);
             
             cutCount++;
         }
@@ -1610,8 +1615,9 @@ function performDuplicate(e) {
         } else {
             // RÉGI LOGIKA: Ha ez egy Audio Klip, másoljuk az audioBuffer-t
             const buffer = selected.audioBuffer;
-            newClip = addClipToTrack(parent, buffer, name, newStart, currentTrim, currentDuration);
-        }
+            const assetId = selected.dataset.assetId;
+            newClip = addClipToTrack(parent, buffer, name, newStart, currentTrim, currentDuration, assetId);        
+}
 
         if (newClip) newlyCreatedClips.push(newClip);
     });
@@ -2441,13 +2447,24 @@ function exportToWav(left, right, len, sampleRate) {
     return new Blob([view], { type: 'audio/wav' });
 }
 
-function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 0, duration = null) {
+function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 0, duration = null, assetId = null) {
     const clip = document.createElement('div');
     clip.className = 'audio-clip';
     
-    // Megkeressük a sávot, amibe épp tesszük a klipet
+    // --- AUDIO POOL LOGIKA ---
+    // Ha nem kapott assetId-t (tehát ez egy teljesen új felvétel vagy import), adunk neki egyet!
+    if (!assetId) {
+        assetId = 'asset_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+        window.audioPool[assetId] = buffer;
+    }
+    
+    // Elmentjük az id-t a klipbe, hogy a vágásnál és mentésnél tudjuk, melyik fájlra hivatkozik
+    clip.dataset.assetId = assetId;         
+    clip.audioBuffer = buffer;             
+    
+    // Szín megállapítása
     const parentTrack = container.closest('.track-container');
-    let waveColor = '#00ffd5'; // Alapértelmezett (Guitar/Default)
+    let waveColor = '#00ffd5'; 
 
     if (parentTrack) {
         if (parentTrack.classList.contains('drum')) waveColor = '#3fa9f5';
@@ -2457,7 +2474,6 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
         else if (parentTrack.classList.contains('sample')) waveColor = '#ff8c00';
     }
 
-    // Ha nincs megadva start, akkor a playhead; ha van, akkor az (pl. cut esetén)
     const startPos = startTime !== null ? startTime : currentPlayTime;
     const clipDuration = duration !== null ? duration : buffer.duration;
     const width = clipDuration * PX_PER_SECOND;
@@ -2465,35 +2481,26 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
     clip.style.width = `${width}px`;
     clip.style.left = `${startPos * PX_PER_SECOND}px`;
     
-    // Adatok tárolása
-    clip.dataset.start = startPos;         // Mikor kezdődik a timeline-on
-    clip.dataset.trimOffset = trimOffset;  // Mennyit vágtunk le az elejéből
-    clip.dataset.duration = clipDuration;  // Milyen hosszú a klip
-    clip.audioBuffer = buffer;             // Maga az audio adat
+    clip.dataset.start = startPos;         
+    clip.dataset.trimOffset = trimOffset;  
+    clip.dataset.duration = clipDuration;  
     
-    // 1. Név címke
     const label = document.createElement('div');
     label.className = 'clip-name';
     label.textContent = name;
     clip.appendChild(label);
 
-    // 2. Waveform Canvas
     const canvas = document.createElement('canvas');
     canvas.className = 'clip-waveform';
-    
-    // A canvas szélessége mindig a TELJES eredeti fájl hossza
     const fullWidth = buffer.duration * PX_PER_SECOND;
     
     canvas.width = Math.min(fullWidth, 16384);       
     canvas.style.width = `${fullWidth}px`; 
     canvas.style.left = `-${trimOffset * PX_PER_SECOND}px`;
-    
     clip.appendChild(canvas);
     
-    // Kirajzoljuk a teljes buffert
     setTimeout(() => drawWaveform(canvas, buffer, waveColor), 0);
 
-    // 3. Resize fülek (Trimeléshez)
     const leftHandle = document.createElement('div');
     leftHandle.className = 'resize-handle left';
     leftHandle.onmousedown = (e) => initResize(e, leftHandle, clip);
@@ -2506,7 +2513,6 @@ function addClipToTrack(container, buffer, name, startTime = null, trimOffset = 
     
     clip.appendChild(leftHandle);
     clip.appendChild(rightHandle);
-
     container.appendChild(clip);
 
     return clip;
@@ -3153,8 +3159,52 @@ function blobToBase64(blob) {
 // --- PROJEKT MENTÉSE (SERIALIZÁCIÓ) - FELHŐ/LOKÁL LOGIKÁVAL ---
 window.serializeProject = async function(isCloudSave = false) {
     const project = { bpm: bpm, timeSig: timeSig, tracks: [] };
-    let uploadedFileIds = []; // Ide gyűjtjük a Cloudinary azonosítókat a későbbi törléshez!
+    let uploadedFileIds = []; 
 
+    // --- 1. LELTÁR KÉSZÍTÉSE: Mik az egyedi hangfájlok a projektben? ---
+    const uniqueAssets = new Set();
+    document.querySelectorAll('.audio-clip:not(.pattern-clip)').forEach(clip => {
+        if (clip.dataset.assetId && clip.audioBuffer) {
+            uniqueAssets.add(clip.dataset.assetId);
+        }
+    });
+
+    const uploadedAssetsMap = {}; // Itt tároljuk: asset_123 -> Cloudinary URL
+
+    // --- 2. CSAK AZ EGYEDI FÁJLOKAT TÖLTJÜK FEL / KÓDOLJUK! ---
+    for (const assetId of uniqueAssets) {
+        const buffer = window.audioPool[assetId];
+        if (!buffer) continue;
+
+        const wavBlob = audioBufferToWavBlob(buffer);
+
+        if (isCloudSave) {
+            const formData = new FormData();
+            formData.append("file", wavBlob, assetId + ".wav");
+            
+            try {
+                const response = await fetch("https://music-backend-jq1s.onrender.com/upload", {
+                    method: "POST", body: formData
+                });
+                if (!response.ok) throw new Error("Szerver hiba");
+                const data = await response.json();
+                
+                if (data.url) {
+                    uploadedAssetsMap[assetId] = data.url; // URL elmentése a Pool-ba
+                    uploadedFileIds.push(data.public_id);
+                }
+            } catch (e) {
+                console.error("Hiba az asset feltöltésekor:", assetId, e);
+                uploadedAssetsMap[assetId] = ""; 
+            }
+        } else {
+            // Lokális PC mentésnél is spórolunk! Csak egyszer csinálunk Base64-et.
+            const base64Audio = await blobToBase64(wavBlob);
+            uploadedAssetsMap[assetId] = base64Audio;
+        }
+    }
+
+    // --- 3. SÁVOK ÉS KLIPEK MENTÉSE AZ ÚJ, OKOS POOL ADATOKKAL ---
     const tracks = document.querySelectorAll('.track-container');
     for (let track of tracks) {
         const trackData = {
@@ -3177,60 +3227,17 @@ window.serializeProject = async function(isCloudSave = false) {
                     duration: parseFloat(clip.dataset.duration),
                     patternData: JSON.parse(JSON.stringify(clip.patternData)) 
                 });
-            } else if (clip.audioBuffer) {
-                const wavBlob = audioBufferToWavBlob(clip.audioBuffer);
-                
-                if (isCloudSave) {
-                    // --- 1. IGAZI CLOUD MENTÉS: FELTÖLTÉS CLOUDINARY-RE! ---
-                    const formData = new FormData();
-                    formData.append("file", wavBlob, clip.querySelector('.clip-name').textContent + ".wav");
-                    
-                    try {
-                        const response = await fetch("https://music-backend-jq1s.onrender.com/upload", {
-                            method: "POST", body: formData
-                        });
-                        
-                        if (!response.ok) throw new Error("Szerver hiba a feltöltésnél: " + response.status);
-                        
-                        const data = await response.json();
-                        
-                        if (data.url) {
-                            trackData.clips.push({
-                                type: 'audio',
-                                name: clip.querySelector('.clip-name').textContent,
-                                start: parseFloat(clip.dataset.start),
-                                duration: parseFloat(clip.dataset.duration),
-                                trimOffset: parseFloat(clip.dataset.trimOffset || 0),
-                                audioData: data.url // SIKERES LINK MENTÉSE
-                            });
-                            uploadedFileIds.push(data.public_id); 
-                        } else {
-                            throw new Error("Nincs URL a szerver válaszában.");
-                        }
-                    } catch (e) {
-                        console.error("Hiba az audio feltöltésekor:", e);
-                        // HA HIBA VAN, AKKOR IS ELMENTJÜK A KLIPET ÜRES LINKKEL, HOGY LÁSSUK A DIAGNOSZTIKÁT!
-                        trackData.clips.push({
-                            type: 'audio',
-                            name: clip.querySelector('.clip-name').textContent,
-                            start: parseFloat(clip.dataset.start),
-                            duration: parseFloat(clip.dataset.duration),
-                            trimOffset: parseFloat(clip.dataset.trimOffset || 0),
-                            audioData: "" // Direkt üres, hogy dobja az "UPLOAD FAILED" hibát betöltéskor
-                        });
-                    }
-                } else {
-                    // --- 2. LOKÁLIS MENTÉS: Base64-be sütve (Save to PC) ---
-                    const base64Audio = await blobToBase64(wavBlob);
-                    trackData.clips.push({
-                        type: 'audio',
-                        name: clip.querySelector('.clip-name').textContent,
-                        start: parseFloat(clip.dataset.start),
-                        duration: parseFloat(clip.dataset.duration),
-                        trimOffset: parseFloat(clip.dataset.trimOffset || 0),
-                        audioData: base64Audio 
-                    });
-                }
+            } else if (clip.audioBuffer && clip.dataset.assetId) {
+                // Audio klip mentése, most már a POOL URL-jével
+                trackData.clips.push({
+                    type: 'audio',
+                    name: clip.querySelector('.clip-name').textContent,
+                    start: parseFloat(clip.dataset.start),
+                    duration: parseFloat(clip.dataset.duration),
+                    trimOffset: parseFloat(clip.dataset.trimOffset || 0),
+                    assetId: clip.dataset.assetId,
+                    audioData: uploadedAssetsMap[clip.dataset.assetId] || "" // Itt kapja meg a közös URL-t!
+                });
             }
         }
 
@@ -3247,7 +3254,6 @@ window.serializeProject = async function(isCloudSave = false) {
         project.tracks.push(trackData);
     }
 
-    // Ha felhőbe mentünk, visszaadjuk a fájlok listáját is a törlő funkcióhoz!
     if (isCloudSave) return { projectData: project, uploadedFileIds };
     return project;
 };
