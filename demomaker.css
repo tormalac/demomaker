@@ -147,7 +147,7 @@ h1, h2, h3 {
 #authDropdown {
     position: absolute;
     top: calc(100% - 10px); 
-    right: 0;
+    right: 20px;
     width: 190px;
     border: 1px solid var(--accent-soft);
     color: var(--text-main);
