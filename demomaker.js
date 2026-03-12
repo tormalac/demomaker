@@ -135,6 +135,10 @@ async function enableAudio() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     
     stream.getTracks().forEach(t => t.stop());
+
+    // --- ÚJ: CSENDES ÉBRESZTŐ A SZERVERNEK ---
+    fetch("https://music-backend-jq1s.onrender.com/").catch(e => console.log("Wake up ping elküldve."));
+
   } catch (err) {
     console.error("Audio Hiba:", err);
     alert('Audio hiba: ' + err.message);
@@ -219,6 +223,95 @@ function selectOutput(track, btn, picker) {
     if (audioEl && typeof audioEl.setSinkId === 'function' && btn.dataset.outputId !== 'virtual') {
         audioEl.setSinkId(btn.dataset.outputId).catch(console.error);
     }
+}
+
+// ==========================================================
+// --- UNDO (VISSZAVONÁS) MOTOR ---
+// ==========================================================
+const undoStack = [];
+const MAX_UNDO_STEPS = 30; // Maximum ennyi lépést jegyez meg, hogy ne egye meg a RAM-ot
+
+// Ezt hívjuk meg, mielőtt valami destruktívat csinálunk
+function pushToUndoStack(actionType, data) {
+    undoStack.push({ action: actionType, data: data });
+    
+    // Ha túlléptük a limitet, a legrégebbi emléket eldobjuk
+    if (undoStack.length > MAX_UNDO_STEPS) {
+        undoStack.shift(); 
+    }
+}
+
+// Ezt hívjuk meg a gombnyomásra vagy Ctrl+Z-re
+function performUndo() {
+    const undoBtn = document.querySelector('.undo-btn');
+
+    if (undoStack.length === 0) {
+        if (undoBtn) {
+            undoBtn.style.color = '#ff4c4c';
+            setTimeout(() => undoBtn.style.color = '', 200);
+        }
+        return;
+    }
+
+    const lastStep = undoStack.pop();
+
+    // 1. TÖRLÉS VISSZAVONÁSA
+    if (lastStep.action === 'delete_clips') {
+        lastStep.data.forEach(item => {
+            if (item.parent && item.clip) item.parent.appendChild(item.clip);
+        });
+    }
+    // 2. MOZGATÁS (DRAG & DROP) VISSZAVONÁSA
+    else if (lastStep.action === 'move_clips') {
+        lastStep.data.forEach(item => {
+            if (item.clip && item.originalParent) {
+                // Visszarakjuk az eredeti sávjába
+                const clipsContainer = item.originalParent.querySelector('.clips');
+                if (clipsContainer) clipsContainer.appendChild(item.clip);
+                
+                // Visszaállítjuk az eredeti pozícióját
+                item.clip.style.left = item.originalLeft + 'px';
+                item.clip.dataset.start = item.originalStart;
+                
+                // Szín visszaállítása (ha másik trackre húztuk volna)
+                if (typeof updateClipColor === 'function') {
+                    updateClipColor(item.clip, item.originalParent);
+                }
+            }
+        });
+    }
+    // 3. DUPLIKÁLÁS VISSZAVONÁSA
+    else if (lastStep.action === 'duplicate_clips') {
+        // A duplikálás visszavonása a legegyszerűbb: töröljük a frissen klónozott elemeket
+        lastStep.data.forEach(clip => {
+            if (clip) clip.remove();
+        });
+    }
+    // 4. VÁGÁS VISSZAVONÁSA
+    else if (lastStep.action === 'cut_clips') {
+        lastStep.data.forEach(item => {
+            // Letöröljük a két félbevágott darabot
+            item.newClips.forEach(newClip => newClip.remove());
+            // Visszatesszük az eredeti, sértetlen klipet
+            if (item.parent && item.originalClip) {
+                item.parent.appendChild(item.originalClip);
+            }
+        });
+    }
+
+    if (undoBtn) {
+        undoBtn.classList.add('active');
+        setTimeout(() => undoBtn.classList.remove('active'), 150);
+    }
+}
+
+// Gomb eseménykezelőjének bekötése
+const undoBtn = document.querySelector('.undo-btn');
+if (undoBtn) {
+    undoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        performUndo();
+    });
 }
 
 // --- WAVEFORM RAJZOLÓ ---
@@ -732,6 +825,7 @@ function openDrumEditor(clip) {
         <option value="TR-808 (Deep)">TR-808 (Deep)</option>
         <option value="TR-909 (Punchy)">TR-909 (Punchy)</option>
         <option value="Synthwave">Retro Synthwave</option>
+        <option value="Dark Matter (Modern)">Dark Matter (Modern)</option>
     `;
     // Betöltjük a mentett hangot, vagy adunk egy alapértelmezettet
     presetSelector.value = trackContainer.dataset.preset || 'TR-808 (Deep)';
@@ -1513,9 +1607,7 @@ function performCut(e) {
     if (e.cancelable) e.preventDefault(); 
     e.stopPropagation();
     
-    // Lekérjük az ÖSSZES kijelölt klipet (hiszen most már több is lehet!)
     const selectedClips = document.querySelectorAll('.audio-clip.selected-clip');
-    
     if (selectedClips.length === 0) {
         alert("Nincs kijelölve klip a vágáshoz!");
         cutBtn.classList.remove('active');
@@ -1523,50 +1615,54 @@ function performCut(e) {
     }
 
     let cutCount = 0;
+    const cutUndoData = []; // --- ÚJ: Emlékezünk a vágásokra ---
 
     selectedClips.forEach(selected => {
         const clipStart = parseFloat(selected.dataset.start);
         const clipDur = parseFloat(selected.dataset.duration);
         const clipEnd = clipStart + clipDur;
         
-        // Csak azt a klipet vágjuk el, amit épp metsz a Playhead (piros vonal)
         if (currentPlayTime > clipStart && currentPlayTime < clipEnd) {
             const buffer = selected.audioBuffer;
-            const parent = selected.parentElement; // Ez a .clips div
+            const parent = selected.parentElement; 
             const name = selected.querySelector('.clip-name').textContent;
             const originalTrim = parseFloat(selected.dataset.trimOffset || 0);
-            
-            // Kiszámoljuk, hol vágunk a klipen belül (másodpercben)
             const cutPointRelative = currentPlayTime - clipStart;
+            const assetId = selected.dataset.assetId;
             
-            // 1. Eredeti klip eltüntetése
+            // 1. Eredeti klip eltüntetése a DOM-ból (de a memóriában marad!)
             selected.remove(); 
             
-            // 2. BAL OLDALI DARAB létrehozása (a vágópontig)
-            //addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative);
-            const assetId = selected.dataset.assetId;
-            addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative, assetId);
+            // 2. BAL OLDALI DARAB
+            const leftPart = addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative, assetId);
             
-            // 3. JOBB OLDALI DARAB létrehozása (a vágóponttól a végéig)
+            // 3. JOBB OLDALI DARAB
             const remainingDuration = clipDur - cutPointRelative;
             const newTrimOffset = originalTrim + cutPointRelative;
-            //addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration);
-            addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration, assetId);
+            const rightPart = addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration, assetId);
+            
+            // --- ÚJ: Bedobjuk a memóriába a vágás adatait ---
+            cutUndoData.push({
+                parent: parent,
+                originalClip: selected,
+                newClips: [leftPart, rightPart]
+            });
             
             cutCount++;
         }
     });
 
-    if (cutCount === 0) {
-        alert("A Playhead (piros vonal) nem érinti a kijelölt klipet(eket)!");
+    // --- ÚJ: Ha történt sikeres vágás, mentsük el az undo verembe ---
+    if (cutCount > 0) {
+        pushToUndoStack('cut_clips', cutUndoData);
     } else {
-        // Haptikus visszajelzés mobilon
-        if (navigator.vibrate) navigator.vibrate(50);
+        alert("A Playhead (piros vonal) nem érinti a kijelölt klipet(eket)!");
     }
     
-    // Gomb vizuális kikapcsolása kattintás után
+    if (navigator.vibrate) navigator.vibrate(50);
     setTimeout(() => cutBtn.classList.remove('active'), 150);
 }
+
 cutBtn.addEventListener('touchstart', performCut, {passive: false});
 cutBtn.addEventListener('click', performCut);
 
@@ -1628,6 +1724,11 @@ function performDuplicate(e) {
     // 2. Rátesszük a kijelölést az ÚJ klipekre
     newlyCreatedClips.forEach(c => c.classList.add('selected-clip'));
 
+    // --- ÚJ: UNDO MENTÉS ---
+    if (newlyCreatedClips.length > 0) {
+        pushToUndoStack('duplicate_clips', newlyCreatedClips);
+    }
+
     // Vizuális és haptikus visszajelzés
     if (navigator.vibrate) navigator.vibrate(50);
     setTimeout(() => {
@@ -1653,6 +1754,18 @@ function performDelete(e) {
         if (deleteBtn) deleteBtn.classList.remove('active');
         return; // Ha nincs mit törölni, kilépünk
     }
+
+    // --- ÚJ: UNDO PILLANATKÉP KÉSZÍTÉSE TÖRLÉS ELŐTT ---
+    const deletedData = [];
+    selectedClips.forEach(clip => {
+        deletedData.push({
+            parent: clip.parentElement, // Emlékezünk, melyik sávon volt (.clips konténer)
+            clip: clip                  // Maga a teljes HTML/DOM elem
+        });
+    });
+    // Bedobjuk az agyába:
+    pushToUndoStack('delete_clips', deletedData);
+    // ----------------------------------------------------
 
     // 2. Végigmegyünk a listán, és mindet eltüntetjük a DOM-ból
     selectedClips.forEach(clip => {
@@ -1947,7 +2060,7 @@ let selectedClip = null;
 let targetTrackForClip = null;
 let hasDraggedClip = false;
 
-// --- 1. KLIP KIJELÖLÉSE ÉS DRAG INDÍTÁSA ---
+// A klip megfogásakor
 function handleClipInteraction(clientX, target, e) {
     if (target.closest('.control-panel') || target.closest('.track-actions') || target.closest('.timeline-ruler') || target.tagName === 'BUTTON' || target.closest('button')) {
         return false;
@@ -1957,34 +2070,33 @@ function handleClipInteraction(clientX, target, e) {
     const isSelectMode = selectBtn && selectBtn.classList.contains('active');
     const clip = target.closest('.audio-clip');
 
-    // Ha az üres sávra kattintunk
-    if (!clip) {
-        
-        return false;
-    }
-
-    // HA NINCS BEKAPCSOLVA A SELECT ESZKÖZ, NE LEHESSEN KIJELÖLNI SEMMIT!
+    if (!clip) return false;
     if (!isSelectMode) return false;
 
     const wasSelected = clip.classList.contains('selected-clip');
 
-    // Ha még nem volt kijelölve, azonnal rátesszük, hogy lehessen húzni a többivel együtt
     if (!wasSelected) {
         clip.classList.add('selected-clip');
-        clip.dataset.justSelected = 'true'; // Megjegyezzük, hogy most kapta meg
+        clip.dataset.justSelected = 'true';
     } else {
-        clip.dataset.justSelected = 'false'; // Már ki volt jelölve
+        clip.dataset.justSelected = 'false';
     }
 
-    // Felkészülünk a húzásra
     isDraggingClip = true;
     draggedClip = clip;
     clipMouseStartX = clientX;
-    hasDraggedClip = false; // Még nem mozdítottuk el az egeret/ujjat!
+    hasDraggedClip = false; 
 
-    // Elmentjük minden kijelölt klip kiinduló pozícióját
+    // --- ÚJ: UNDO PILLANATKÉP ELŐKÉSZÍTÉSE MOZGATÁS ELŐTT ---
+    window.dragStartStates = []; // Globális tömb a kiinduló pozícióknak
     document.querySelectorAll('.selected-clip').forEach(c => {
         c.dataset.startLeft = parseFloat(c.style.left) || 0;
+        window.dragStartStates.push({
+            clip: c,
+            originalLeft: parseFloat(c.style.left) || 0,
+            originalStart: c.dataset.start,
+            originalParent: c.closest('.track-container')
+        });
     });
 
     return true;
@@ -2044,11 +2156,10 @@ function handleClipDragMove(clientX, clientY) {
     }
 }
 
-// --- 4. A KLIP ELENGEDÉSE (DROP) ---
+// A klip elengedésekor
 function handleClipDragEnd() {
     if (!isDraggingClip || !draggedClip) return;
 
-    // Ha volt cél-sáv, az ÖSSZES kijelölt klipet átdobjuk oda
     if (targetTrackForClip) {
         const newClipsContainer = targetTrackForClip.querySelector('.clips');
         if (newClipsContainer) {
@@ -2059,17 +2170,18 @@ function handleClipDragEnd() {
         }
     }
     
-    // Töröljük a sáv vizuális kiemelését
     document.querySelectorAll('.track-container').forEach(t => t.classList.remove('drag-over-target'));
 
-    // --- A JAVÍTOTT TOGGLE LOGIKA ---
-    // Ha NEM mozdítottuk el az egeret (tehát csak egy sima kattintás volt)
-    // ÉS már előtte is ki volt jelölve, akkor most VESSZÜK LE a kijelölést!
     if (!hasDraggedClip && draggedClip.dataset.justSelected === 'false') {
         draggedClip.classList.remove('selected-clip');
     }
 
-    // Takarítás
+    // --- ÚJ: HA TÉNYLEG MOZGATTUK ŐKET, MENTJÜK A VEREMBE! ---
+    if (hasDraggedClip && window.dragStartStates && window.dragStartStates.length > 0) {
+        pushToUndoStack('move_clips', window.dragStartStates);
+    }
+    window.dragStartStates = null; // Takarítás
+
     isDraggingClip = false;
     draggedClip = null;
     targetTrackForClip = null;
@@ -3051,6 +3163,13 @@ document.addEventListener('keydown', (e) => {
     
     if (isTyping) return;
 
+    // --- ÚJ: CTRL + Z (Undo) ---
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault(); // Megakadályozzuk, hogy a böngésző a saját undo-ját használja
+        performUndo();
+        return;
+    }
+
     // --- ÚJ: CTRL + D (Duplikálás) ---
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault(); // Megakadályozzuk, hogy a böngésző könyvjelzőt csináljon
@@ -3158,34 +3277,92 @@ function blobToBase64(blob) {
 
 // --- PROJEKT MENTÉSE (SERIALIZÁCIÓ) - FELHŐ/LOKÁL LOGIKÁVAL ---
 window.serializeProject = async function(isCloudSave = false) {
-    const project = { bpm: bpm, timeSig: timeSig, tracks: [] };
-    let uploadedFileIds = []; 
+    
+    // ==========================================================
+    // 1. SZINKRON PILLANATKÉP (SNAPSHOT) KÉSZÍTÉSE
+    // Ezt a részt azonnal, milliszekundumok alatt lefuttatjuk!
+    // ==========================================================
+    const snapshot = { 
+        bpm: bpm, 
+        timeSig: [...timeSig], // Tömb másolása
+        tracks: [] 
+    };
+    
+    const uniqueAssetsToProcess = new Set();
+    const assetBuffers = {}; // Itt tároljuk a memóriában lévő audioBuffer referenciákat
 
-    // --- 1. LELTÁR KÉSZÍTÉSE: Mik az egyedi hangfájlok a projektben? ---
-    const uniqueAssets = new Set();
-    document.querySelectorAll('.audio-clip:not(.pattern-clip)').forEach(clip => {
-        if (clip.dataset.assetId && clip.audioBuffer) {
-            uniqueAssets.add(clip.dataset.assetId);
+    const tracks = document.querySelectorAll('.track-container');
+    tracks.forEach(track => {
+        const trackData = {
+            type: track.classList[1],
+            name: track.querySelector('.track-name').textContent,
+            preset: track.dataset.preset || '',
+            vol: track.querySelector('.trk-vol-slider') ? track.querySelector('.trk-vol-slider').value : 80,
+            pan: track.querySelector('.trk-pan-slider') ? track.querySelector('.trk-pan-slider').value : 0,
+            scAmount: track.querySelector('.trk-sc-slider') ? track.querySelector('.trk-sc-slider').value : 0,
+            clips: [],
+            fxChain: []
+        };
+
+        // Klipek azonnali kimentése
+        const clips = track.querySelectorAll('.audio-clip');
+        clips.forEach(clip => {
+            if (clip.dataset.type === 'pattern' && clip.patternData) {
+                trackData.clips.push({
+                    type: 'pattern',
+                    start: parseFloat(clip.dataset.start),
+                    duration: parseFloat(clip.dataset.duration),
+                    patternData: JSON.parse(JSON.stringify(clip.patternData)) // Deep copy, hogy ne változzon meg utólag
+                });
+            } else if (clip.audioBuffer && clip.dataset.assetId) {
+                const assetId = clip.dataset.assetId;
+                uniqueAssetsToProcess.add(assetId);
+                assetBuffers[assetId] = clip.audioBuffer; // Lementjük az audio buffert
+
+                trackData.clips.push({
+                    type: 'audio',
+                    name: clip.querySelector('.clip-name').textContent,
+                    start: parseFloat(clip.dataset.start),
+                    duration: parseFloat(clip.dataset.duration),
+                    trimOffset: parseFloat(clip.dataset.trimOffset || 0),
+                    assetId: assetId,
+                    audioData: "" // Ezt az üres helyet majd a feltöltés után töltjük ki!
+                });
+            }
+        });
+
+        // FX lánc kimentése
+        if (track.fxChain) {
+            track.fxChain.forEach(fxItem => {
+                const pluginState = { name: fxItem.name, params: {} };
+                fxItem.ui.querySelectorAll('.knob').forEach(knob => { pluginState.params[knob.dataset.param] = knob.dataset.val; });
+                const toggle = fxItem.ui.querySelector('.toggle-switch');
+                if (toggle) pluginState.params['mode'] = toggle.dataset.val;
+                fxItem.ui.querySelectorAll('.max-slider').forEach(slider => { pluginState.params[slider.id] = slider.value; });
+                trackData.fxChain.push(pluginState);
+            });
         }
+        snapshot.tracks.push(trackData);
     });
 
-    const uploadedAssetsMap = {}; // Itt tároljuk: asset_123 -> Cloudinary URL
+    // ==========================================================
+    // 2. ASZINKRON FELTÖLTÉS (Innentől a user már nyomkodhatja a DAW-ot)
+    // ==========================================================
+    let uploadedFileIds = []; 
+    const uploadedAssetsMap = {}; 
+    let uploadErrors = 0; // Hiba számláló
 
-    // --- 2. CSAK AZ EGYEDI FÁJLOKAT TÖLTJÜK FEL / KÓDOLJUK! ---
-    for (const assetId of uniqueAssets) {
-        let buffer = window.audioPool[assetId]; // <-- FONTOS: 'const' helyett 'let' legyen!
+    for (const assetId of uniqueAssetsToProcess) {
+        let buffer = assetBuffers[assetId];
         if (!buffer) continue;
 
-        // --- ÚJ: PROMISE VIZSGÁLAT ---
-        // Ha betöltés után egyből mentünk, lehet, hogy a buffer még csak egy "ígéret" (Promise).
-        // Megvárjuk, amíg igazi audió lesz belőle!
+        // Várjuk meg, ha még csak Promise lenne
         if (buffer instanceof Promise) {
             buffer = await buffer;
-            window.audioPool[assetId] = buffer; // Kicseréljük a memóriában is a véglegesre!
+            window.audioPool[assetId] = buffer; 
         }
-        // -----------------------------
 
-        const wavBlob = audioBufferToWavBlob(buffer); // Most már biztosan le tud futni!
+        const wavBlob = audioBufferToWavBlob(buffer); 
 
         if (isCloudSave) {
             const formData = new FormData();
@@ -3199,72 +3376,41 @@ window.serializeProject = async function(isCloudSave = false) {
                 const data = await response.json();
                 
                 if (data.url) {
-                    uploadedAssetsMap[assetId] = data.url; // URL elmentése a Pool-ba
+                    uploadedAssetsMap[assetId] = data.url; 
                     uploadedFileIds.push(data.public_id);
+                } else {
+                    throw new Error("Nincs URL a válaszban");
                 }
             } catch (e) {
                 console.error("Hiba az asset feltöltésekor:", assetId, e);
                 uploadedAssetsMap[assetId] = ""; 
+                uploadErrors++; // Növeljük a hibák számát!
             }
         } else {
-            // Lokális PC mentésnél is spórolunk! Csak egyszer csinálunk Base64-et.
             const base64Audio = await blobToBase64(wavBlob);
             uploadedAssetsMap[assetId] = base64Audio;
         }
     }
 
-    // --- 3. SÁVOK ÉS KLIPEK MENTÉSE AZ ÚJ, OKOS POOL ADATOKKAL ---
-    const tracks = document.querySelectorAll('.track-container');
-    for (let track of tracks) {
-        const trackData = {
-            type: track.classList[1],
-            name: track.querySelector('.track-name').textContent,
-            preset: track.dataset.preset || '',
-            vol: track.querySelector('.trk-vol-slider') ? track.querySelector('.trk-vol-slider').value : 80,
-            pan: track.querySelector('.trk-pan-slider') ? track.querySelector('.trk-pan-slider').value : 0,
-            scAmount: track.querySelector('.trk-sc-slider') ? track.querySelector('.trk-sc-slider').value : 0,
-            clips: [],
-            fxChain: []
-        };
-
-        const clips = track.querySelectorAll('.audio-clip');
-        for (let clip of clips) {
-            if (clip.dataset.type === 'pattern' && clip.patternData) {
-                trackData.clips.push({
-                    type: 'pattern',
-                    start: parseFloat(clip.dataset.start),
-                    duration: parseFloat(clip.dataset.duration),
-                    patternData: JSON.parse(JSON.stringify(clip.patternData)) 
-                });
-            } else if (clip.audioBuffer && clip.dataset.assetId) {
-                // Audio klip mentése, most már a POOL URL-jével
-                trackData.clips.push({
-                    type: 'audio',
-                    name: clip.querySelector('.clip-name').textContent,
-                    start: parseFloat(clip.dataset.start),
-                    duration: parseFloat(clip.dataset.duration),
-                    trimOffset: parseFloat(clip.dataset.trimOffset || 0),
-                    assetId: clip.dataset.assetId,
-                    audioData: uploadedAssetsMap[clip.dataset.assetId] || "" // Itt kapja meg a közös URL-t!
-                });
+    // ==========================================================
+    // 3. VÉGLEGES JSON ÖSSZEÁLLÍTÁSA ÉS VISSZATÉRÉS
+    // ==========================================================
+    // Végigmegyünk a kész snapshot-on, és befecskendezzük a letöltött URL-eket
+    snapshot.tracks.forEach(track => {
+        track.clips.forEach(clip => {
+            if (clip.type === 'audio') {
+                clip.audioData = uploadedAssetsMap[clip.assetId] || "";
             }
-        }
+        });
+    });
 
-        if (track.fxChain) {
-            track.fxChain.forEach(fxItem => {
-                const pluginState = { name: fxItem.name, params: {} };
-                fxItem.ui.querySelectorAll('.knob').forEach(knob => { pluginState.params[knob.dataset.param] = knob.dataset.val; });
-                const toggle = fxItem.ui.querySelector('.toggle-switch');
-                if (toggle) pluginState.params['mode'] = toggle.dataset.val;
-                fxItem.ui.querySelectorAll('.max-slider').forEach(slider => { pluginState.params[slider.id] = slider.value; });
-                trackData.fxChain.push(pluginState);
-            });
-        }
-        project.tracks.push(trackData);
+    // Ha volt hiba, szólunk a felhasználónak
+    if (uploadErrors > 0) {
+        alert(`Figyelem! A projekt mentése sikeres lesz, de ${uploadErrors} db hangfájl feltöltése megszakadt hálózati hiba miatt.`);
     }
 
-    if (isCloudSave) return { projectData: project, uploadedFileIds };
-    return project;
+    if (isCloudSave) return { projectData: snapshot, uploadedFileIds };
+    return snapshot;
 };
 
 // ==========================================================
