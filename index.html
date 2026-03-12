@@ -159,6 +159,8 @@
 
     <main>
         <div class="track-list" id="trackList">
+           <input type="text" id="projectName" class="project-name-input" value="My Awesome Project" spellcheck="false" title="Project Name">
+
            <div class="timeline-ruler" id="timelineRuler">
                <div class="ruler-inner" id="rulerInner">
                     <div id="loopRegion" class="loop-region" style="display: none;">
@@ -306,8 +308,14 @@ document.querySelectorAll('.project-btn').forEach(btn => {
                 return;
             }
 
-            const projectName = prompt("Adj egy nevet a dalnak:", "My Awesome Track");
+            const projNameInput = document.getElementById('projectName');
+            const defaultName = projNameInput ? projNameInput.value : "My Awesome Project";
+            
+            const projectName = prompt("Adj egy nevet a dalnak:", defaultName);
             if (!projectName) return;
+            
+            // Szinkronizáljuk a beírt nevet a felülettel
+            if (projNameInput) projNameInput.value = projectName;
 
             const originalText = btn.textContent;
             let isUploadFinished = false; // Ezzel figyeljük, hogy végeztünk-e
@@ -377,12 +385,15 @@ document.querySelectorAll('.project-btn').forEach(btn => {
     if (btn.textContent === 'Save') {
         btn.onclick = async () => {
             try {
+                const projNameInput = document.getElementById('projectName');
+                const safeName = projNameInput && projNameInput.value ? projNameInput.value.replace(/[^a-z0-9_ \-]/gi, '_') : 'demomaker_project';
+
                 const projectData = await window.serializeProject(false); 
                 const jsonString = JSON.stringify(projectData, null, 2); 
                 const blob = new Blob([jsonString], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.style.display = 'none'; a.href = url; a.download = 'demomaker_project.json';
+                a.style.display = 'none'; a.href = url; a.download = `${safeName}.json`;
                 document.body.appendChild(a); a.click();
                 URL.revokeObjectURL(url); document.body.removeChild(a);
             } catch (err) { alert("Hiba a mentés során: " + err.message); }
@@ -447,6 +458,10 @@ async function loadCloudProjects(uid) {
                 try {
                     const response = await fetch(data.url);
                     const projectData = await response.json();
+                    
+                    // ÚJ: Kényszerítjük, hogy a felhőben (Firebase) tárolt név legyen a betöltött projekt neve!
+                    projectData.projectName = data.name; 
+                    
                     window.loadProject(projectData);
                 } catch(e) { alert("Hiba a betöltéskor: " + e.message); }
             };
@@ -506,6 +521,14 @@ window.loadProject = async function(projectData) {
     document.querySelectorAll('.track-container').forEach(t => t.remove());
     document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
     trackCounter = 0;
+
+    if (projectData.projectName) {
+        const projNameInput = document.getElementById('projectName');
+        if (projNameInput) {
+            projNameInput.value = projectData.projectName;
+            projNameInput.style.display = 'block';
+        }
+    }
     
     const rulerEl = document.getElementById('timelineRuler');
     rulerEl.style.display = 'none';
