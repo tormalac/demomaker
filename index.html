@@ -107,6 +107,12 @@
          <button data-grid="1/64">1/64</button>
         </div>
        </div>
+       <button class="undo-btn" title="Undo (Ctrl+Z)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+         <path d="M3 7v6h6"></path>
+         <path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path>
+        </svg>
+       </button>
        <button class="snap-btn" title="Snap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
          <line x1="12" y1="5" x2="12" y2="19"/>
@@ -304,12 +310,25 @@ document.querySelectorAll('.project-btn').forEach(btn => {
             if (!projectName) return;
 
             const originalText = btn.textContent;
-            
+            let isUploadFinished = false; // Ezzel figyeljük, hogy végeztünk-e
+
+            // --- ÚJ: ALVÁS FIGYELŐ IDŐZÍTŐ ---
+            // Ha 4 másodperc alatt nem lépünk tovább, átírjuk a gombot
+            const sleepWarningTimer = setTimeout(() => {
+                if (!isUploadFinished) {
+                    btn.textContent = 'Waking up server... (~30s)';
+                    btn.style.color = '#ff8c00'; // Narancssárga, hogy feltűnjön
+                }
+            }, 4000);
+
             try {
                 btn.textContent = 'Uploading Audio...';
                 btn.style.color = '#ffd93d'; 
+                
+                // Itt hívjuk a golyóálló, snapshot-os mentőfüggvényünket
                 const { projectData, uploadedFileIds } = await window.serializeProject(true); 
 
+                // Ha idáig eljutott a kód, az audiók fent vannak, a szerver tuti ébren van!
                 btn.textContent = 'Saving Project...';
                 btn.style.color = '#00ffd5';
                 
@@ -321,6 +340,10 @@ document.querySelectorAll('.project-btn').forEach(btn => {
                 const backendUrl = "https://music-backend-jq1s.onrender.com/upload-project";
                 const response = await fetch(backendUrl, { method: "POST", body: formData });
                 const data = await response.json();
+
+                // Sikeresen végeztünk
+                isUploadFinished = true;
+                clearTimeout(sleepWarningTimer);
 
                 if (data.url) {
                     uploadedFileIds.push(data.public_id);
@@ -335,9 +358,16 @@ document.querySelectorAll('.project-btn').forEach(btn => {
                     alert(`A "${projectName}" sikeresen mentve a fiókodba!`);
                 }
             } catch(e) {
+                // Ha hiba volt, állítsuk le a stoppert
+                isUploadFinished = true;
+                clearTimeout(sleepWarningTimer);
                 console.error(e);
                 alert("Hiba a mentésnél: " + e.message);
             }
+            
+            // UI visszaállítása az eredeti állapotra
+            isUploadFinished = true;
+            clearTimeout(sleepWarningTimer);
             btn.textContent = originalText;
             btn.style.color = '';
         };
