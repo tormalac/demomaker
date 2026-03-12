@@ -457,39 +457,62 @@ class AnalogDrumMachine {
         osc.connect(gain); gain.connect(dest); 
         osc.type = 'sine';
 
-        // --- STÍLUS FÜGGŐ LÁBDOB ---
-        if (this.preset === 'TR-808 (Deep)') {
-            // Hosszú, mély, szubos bumm
+        const nodes = [osc]; // Ebbe gyűjtjük a hangforrásokat, hogy meg lehessen őket állítani
+
+        // --- ÚJ: DARK MATTER (MODERN) LÁBDOB ---
+        if (this.preset === 'Dark Matter (Modern)') {
+            // Agresszív "katt" a legelején (pitch drop)
+            osc.frequency.setValueAtTime(350, time); // Nagyon magasról indul
+            osc.frequency.exponentialRampToValueAtTime(45, time + 0.03); // Fülnek alig észrevehetően gyorsan zuhan le
+            osc.frequency.exponentialRampToValueAtTime(30, time + 0.3); // Kitartott, feszes sub basszus
+            
+            gain.gain.setValueAtTime(velocity, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.35); // Rövid, de nagyon vastag lecsengés
+
+            // Egy pici, tűhegyes zaj-burst (click) a dob legelejére a "csattanás" miatt
+            const clickNoise = this.ctx.createBufferSource();
+            clickNoise.buffer = this.noiseBuffer;
+            const clickFilter = this.ctx.createBiquadFilter();
+            clickFilter.type = 'highpass'; clickFilter.frequency.value = 4000; // Csak a legteteje
+            const clickGain = this.ctx.createGain();
+            
+            clickGain.gain.setValueAtTime(velocity * 0.8, time);
+            clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.015); // Mindössze 15ms-ig szól!
+            
+            clickNoise.connect(clickFilter); clickFilter.connect(clickGain); clickGain.connect(dest);
+            clickNoise.start(time); clickNoise.stop(time + 0.02);
+            nodes.push(clickNoise);
+
+            osc.start(time); osc.stop(time + 0.4);
+        }
+        else if (this.preset === 'TR-808 (Deep)') {
             osc.frequency.setValueAtTime(120, time);
             osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
             gain.gain.setValueAtTime(velocity, time);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8); // Nagyon hosszú lecsengés
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
             osc.start(time); osc.stop(time + 0.9);
         } 
         else if (this.preset === 'TR-909 (Punchy)') {
-            // Rövid, nagyon agresszív kattanással induló lábdob
             osc.frequency.setValueAtTime(250, time);
             osc.frequency.exponentialRampToValueAtTime(50, time + 0.05);
             gain.gain.setValueAtTime(velocity, time);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3); // Rövid, feszes
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
             osc.start(time); osc.stop(time + 0.4);
         }
         else {
-            // Synthwave / Retro
-            osc.type = 'triangle'; // Kicsit "műanyagosabb"
+            osc.type = 'triangle'; 
             osc.frequency.setValueAtTime(150, time);
             osc.frequency.exponentialRampToValueAtTime(60, time + 0.1);
             gain.gain.setValueAtTime(velocity, time);
             gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
             osc.start(time); osc.stop(time + 0.5);
         }
-        return [osc];
+        return nodes;
     }
 
     playSnare(time, velocity, dest) {
         const osc = this.ctx.createOscillator();
         const oscGain = this.ctx.createGain();
-        osc.type = 'triangle';
         osc.connect(oscGain); oscGain.connect(dest); 
 
         const noise = this.ctx.createBufferSource();
@@ -498,9 +521,40 @@ class AnalogDrumMachine {
         const noiseGain = this.ctx.createGain();
         noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(dest); 
 
-        // --- STÍLUS FÜGGŐ PERGŐ ---
-        if (this.preset === 'TR-808 (Deep)') {
-            // Vékony, pattanós (magasabb test)
+        const nodes = [osc, noise];
+
+        // --- ÚJ: DARK MATTER (MODERN) PERGŐ ---
+        if (this.preset === 'Dark Matter (Modern)') {
+            osc.type = 'sine'; // Tiszta, nagyot ütő test
+            osc.frequency.setValueAtTime(220, time);
+            osc.frequency.exponentialRampToValueAtTime(150, time + 0.1);
+            oscGain.gain.setValueAtTime(velocity, time);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+
+            // A "Darkglass" jellegű fémes felhanghoz egy második, négyszögjel oszcillátor
+            const ringOsc = this.ctx.createOscillator();
+            ringOsc.type = 'square';
+            ringOsc.frequency.setValueAtTime(330, time); // Magasabb, diszonánsabb felhang
+            const ringGain = this.ctx.createGain();
+            ringGain.gain.setValueAtTime(velocity * 0.25, time); // Halkabbra keverve
+            ringGain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+            ringOsc.connect(ringGain); ringGain.connect(dest);
+            ringOsc.start(time); ringOsc.stop(time + 0.15);
+            nodes.push(ringOsc);
+
+            // Brutálisan szétpréselt, vastag zaj a lecsengéshez
+            noiseFilter.type = 'bandpass'; 
+            noiseFilter.frequency.value = 2500; 
+            noiseFilter.Q.value = 0.6; // Széles tartományt enged át
+            noiseGain.gain.setValueAtTime(velocity, time); // Erős kezdés
+            noiseGain.gain.setTargetAtTime(velocity * 0.4, time + 0.05, 0.05); // Kompresszor szerű plató
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.35); // Hosszú, zizegős lecsengés
+            
+            osc.start(time); osc.stop(time + 0.25);
+            noise.start(time); noise.stop(time + 0.4);
+        }
+        else if (this.preset === 'TR-808 (Deep)') {
+            osc.type = 'triangle';
             osc.frequency.setValueAtTime(250, time);
             oscGain.gain.setValueAtTime(velocity * 0.5, time);
             oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
@@ -511,20 +565,20 @@ class AnalogDrumMachine {
             noise.start(time); noise.stop(time + 0.25);
         } 
         else if (this.preset === 'TR-909 (Punchy)') {
-            // Vastag, zizegős, "csapkodós" pergő
+            osc.type = 'triangle';
             osc.frequency.setValueAtTime(180, time);
             oscGain.gain.setValueAtTime(velocity * 0.7, time);
             oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
             noiseFilter.type = 'bandpass'; noiseFilter.frequency.value = 1500; noiseFilter.Q.value = 0.5;
             noiseGain.gain.setValueAtTime(velocity, time);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.35); // Hosszabb zizegés
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.35); 
             osc.start(time); osc.stop(time + 0.2);
             noise.start(time); noise.stop(time + 0.4);
         }
         else {
-            // Synthwave (Lézeres hatás)
+            osc.type = 'triangle';
             osc.frequency.setValueAtTime(400, time);
-            osc.frequency.exponentialRampToValueAtTime(100, time + 0.15); // Pew-pew effekt!
+            osc.frequency.exponentialRampToValueAtTime(100, time + 0.15); 
             oscGain.gain.setValueAtTime(velocity * 0.6, time);
             oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
             noiseFilter.type = 'highpass'; noiseFilter.frequency.value = 1000;
@@ -533,7 +587,7 @@ class AnalogDrumMachine {
             osc.start(time); osc.stop(time + 0.25);
             noise.start(time); noise.stop(time + 0.3);
         }
-        return [osc, noise];
+        return nodes;
     }
 
     playHiHat(time, velocity, decay, dest) {
