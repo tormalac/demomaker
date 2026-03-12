@@ -525,7 +525,7 @@ window.loadProject = async function(projectData) {
     if (projectData.projectName) {
         const projNameInput = document.getElementById('projectName');
         if (projNameInput) {
-            projNameInput.value = projectData.projectName;
+            projNameInput.value = projectData.projectName || "My Awesome Project";
             projNameInput.style.display = 'block';
         }
     }
