@@ -11,6 +11,13 @@ const gridBtn = document.querySelector('.grid-btn');
 const gridDropdown = document.querySelector('.grid-dropdown');
 const enableAudioBtn = document.getElementById('enableAudioBtn');
 
+const projNameInput = document.getElementById('projectName');
+if (projNameInput) {
+    projNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') e.target.blur();
+    });
+}
+
 // --- UNIVERZÁLIS SÁV-SZÍN LEKÉRDEZŐ ---
 function getTrackColor(trackContainer) {
     if (!trackContainer) return '#00ffd5'; 
@@ -679,6 +686,9 @@ function createTrack(type) {
 
     const rulerEl = document.getElementById('timelineRuler');
     if (rulerEl.style.display !== 'flex') rulerEl.style.display = 'flex';
+
+    const projNameInput = document.getElementById('projectName');
+    if (projNameInput && projNameInput.style.display !== 'block') projNameInput.style.display = 'block';
     
     populateAudioSources(track);
     populateOutputDevices(track);
@@ -1114,7 +1124,11 @@ document.addEventListener('click', e => {
             if (mixChan) mixChan.remove();
             
             const remainingTracks = document.querySelectorAll('.track-container').length;
-            if (remainingTracks === 0) document.getElementById('timelineRuler').style.display = 'none';
+            if (remainingTracks === 0) {
+                document.getElementById('timelineRuler').style.display = 'none';
+                const projNameInput = document.getElementById('projectName');
+                if (projNameInput) projNameInput.style.display = 'none';
+            }
             
             updateSoloStates();
             updateZoomVisibility();
@@ -2480,14 +2494,19 @@ if (exportBtn) {
             exportBtn.style.color = '#ffd93d'; // Sárga szín, amíg kódol
 
             // Kódolás megkezdése (kis késleltetéssel, hogy a UI frissülhessen)
+            // Kódolás megkezdése (kis késleltetéssel, hogy a UI frissülhessen)
             setTimeout(() => {
                 const wavBlob = exportToWav(leftChannel, rightChannel, recordingLength, audioCtx.sampleRate);
                 const url = URL.createObjectURL(wavBlob);
                 
+                // ÚJ: Fájlnév okos megállapítása
+                const projNameInput = document.getElementById('projectName');
+                const safeName = projNameInput && projNameInput.value ? projNameInput.value.replace(/[^a-z0-9_ \-]/gi, '_') : 'demoMaker';
+                
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = isLooping ? 'demoMaker_Loop.wav' : 'demoMaker_Track.wav';
+                a.download = isLooping ? `${safeName}_Loop.wav` : `${safeName}_Track.wav`;
                 document.body.appendChild(a);
                 a.click();
                 
@@ -3282,9 +3301,11 @@ window.serializeProject = async function(isCloudSave = false) {
     // 1. SZINKRON PILLANATKÉP (SNAPSHOT) KÉSZÍTÉSE
     // Ezt a részt azonnal, milliszekundumok alatt lefuttatjuk!
     // ==========================================================
+    const projNameInput = document.getElementById('projectName');
     const snapshot = { 
+        projectName: projNameInput ? projNameInput.value : "My Awesome Project", // ÚJ SOR
         bpm: bpm, 
-        timeSig: [...timeSig], // Tömb másolása
+        timeSig: [...timeSig],
         tracks: [] 
     };
     
@@ -3466,7 +3487,12 @@ if (newProjectBtn) {
         const masterVolVal = document.querySelector('.master-vol-val');
         if (masterVolVal) masterVolVal.textContent = '80%';
 
-        // 6. Nézet (Scroll és Playhead) visszaállítása a nullára
+        // 6. Nézet és Név (Scroll és Playhead) visszaállítása
+        const projNameInput = document.getElementById('projectName');
+        if (projNameInput) {
+            projNameInput.value = "My Awesome Project";
+            projNameInput.style.display = 'none';
+        }
         if (typeof setScroll === 'function') setScroll(0);
         updatePlayheadVisuals();
         
