@@ -516,18 +516,29 @@ async function loadCloudProjects(uid) {
 window.loadProject = async function(projectData) {
     if (!projectData || !projectData.tracks) return;
 
-    window.audioPool = {};
+    // 1. Memóriaszivárgás megelőzése (FX láncok és Audio node-ok takarítása betöltés előtt)
+    document.querySelectorAll('.track-container').forEach(track => {
+        if (track.trackGainNode) track.trackGainNode.disconnect();
+        if (track.trackPannerNode) track.trackPannerNode.disconnect();
+        if (track.analyserNode) track.analyserNode.disconnect();
+        if (track.fxOutputNode) track.fxOutputNode.disconnect();
+        if (track.fxChain && track.fxChain.length > 0) {
+            track.fxChain.forEach(fx => {
+                if (fx.instance.output) fx.instance.output.disconnect();
+                if (fx.instance.lfo) { try { fx.instance.lfo.stop(); } catch(e) {} }
+            });
+        }
+        track.remove();
+    });
 
-    document.querySelectorAll('.track-container').forEach(t => t.remove());
     document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
     trackCounter = 0;
+    window.audioPool = {};
 
     const projNameInput = document.getElementById('projectName');
     if (projNameInput) {
-        // Ha nincs a fájlban mentett név, kapja a "My Project"-et
         projNameInput.value = projectData.projectName || "My Project";
         projNameInput.style.display = 'block';
-        // Bónusz: frissítjük a böngésző fülének (document.title) nevét is!
         document.title = projNameInput.value + " – demoMaker BETA"; 
     }
     
@@ -551,8 +562,8 @@ window.loadProject = async function(projectData) {
         const trackId = newTrack.dataset.trackId;
         const mixerChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
 
-        newTrack.querySelector('.track-name').textContent = tData.name;
-        if (mixerChan) mixerChan.querySelector('.mix-header').textContent = tData.name;
+        newTrack.querySelector('.track-name').textContent = tData.name || "Track";
+        if (mixerChan) mixerChan.querySelector('.mix-header').textContent = tData.name || "Track";
         newTrack.dataset.preset = tData.preset || '';
 
         const volSlider = newTrack.querySelector('.trk-vol-slider');
@@ -585,11 +596,16 @@ window.loadProject = async function(projectData) {
             }
         }
 
-        // --- KLIPEK VISSZAÁLLÍTÁSA (MIDI ÉS ÚJ AUDIO LOGIKA) ---
+        // --- KLIPEK VISSZAÁLLÍTÁSA (Bisszamenőleges kompatibilitással) ---
         const clipsContainer = newTrack.querySelector('.clips');
         if (tData.clips) {
             tData.clips.forEach(async cData => {
-                if (cData.type === 'pattern') {
+                
+                // JAVÍTÁS: Ha egy régi mentést töltünk be, ahol még nem volt "type" mező, 
+                // az alapértelmezetten "audio" lesz, így nem vész el!
+                const clipType = cData.type || 'audio'; 
+
+                if (clipType === 'pattern') {
                     const newClip = addPatternClipToTrack(clipsContainer, "Pattern", cData.start, cData.patternData.lengthInBars);
                     newClip.patternData = cData.patternData; 
                     newClip.dataset.duration = cData.duration;
@@ -606,8 +622,7 @@ window.loadProject = async function(projectData) {
                     canvas.width = Math.min(cData.duration * PX_PER_SECOND, 16384);
                     drawPattern(canvas, newClip, waveColor);
 
-                } else if (cData.type === 'audio') {
-                    // Ha régi a mentés, generál egy ideiglenes ID-t, ha új, használja a mentettet
+                } else if (clipType === 'audio') {
                     const assetId = cData.assetId || ('legacy_' + Math.floor(Math.random()*10000));
                     
                     const ghostClip = document.createElement('div');
@@ -624,19 +639,15 @@ window.loadProject = async function(projectData) {
                         ghostClip.style.border = '1px dashed #ff4c4c';
                         ghostClip.innerHTML = `<div style="font-size:9px; color:#ff4c4c; font-family:var(--font-mono); width:100%; text-align:center; padding-top:10px;">UPLOAD FAILED</div>`;
                     } else {
-                        // --- OKOS LETÖLTÉS (CSAK EGYSZER TÖLTI LE) ---
                         if (!window.audioPool[assetId]) {
-                            // Még nincs a memóriában, letöltjük! (Promise-ként mentjük a poolba)
                             window.audioPool[assetId] = fetch(cData.audioData)
                                 .then(res => res.arrayBuffer())
                                 .then(arr => audioCtx.decodeAudioData(arr));
                         }
 
-                        // Megvárjuk, amíg megérkezik (vagy a fent indított fetchből, vagy mert már korábban letöltöttük)
                         window.audioPool[assetId].then(audioBuffer => {
                             ghostClip.remove(); 
-                            // Figyeld meg: átadjuk neki az assetId-t, így megjegyzi!
-                            addClipToTrack(clipsContainer, audioBuffer, cData.name, cData.start, cData.trimOffset, cData.duration, assetId);
+                            addClipToTrack(clipsContainer, audioBuffer, cData.name || "Audio", cData.start, cData.trimOffset || 0, cData.duration, assetId);
                         }).catch(e => {
                             console.error("Audio letöltési hiba:", e);
                             ghostClip.style.border = '1px dashed #ff4c4c';
@@ -651,10 +662,18 @@ window.loadProject = async function(projectData) {
     drawRuler();
     drawAllGrids();
     updateZoomVisibility();
+    
+    // JAVÍTÁS: Mindig visszahúzzuk a képernyőt az elejére (hogy ne legyenek elcsúszva a sávok)
+    if (typeof setScroll === 'function') setScroll(0); 
     updatePlayheadVisuals();
     
-    document.getElementById('openPicker').classList.remove('show');
-    alert("Projekt sikeresen betöltve!");
+    const openPicker = document.getElementById('openPicker');
+    if (openPicker) openPicker.classList.remove('show');
+    
+    // JAVÍTÁS: Egy pici késleltetés a vizuális frissítés miatt, hogy a böngésző ki tudja rajzolni a sávokat, MIELŐTT feldobja az ablakot!
+    setTimeout(() => {
+        alert("Projekt sikeresen betöltve!");
+    }, 150);
 };
 
 // --- LOKÁLIS FÁJL MEGNYITÁSA (From PC) ---
