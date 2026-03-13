@@ -3303,7 +3303,7 @@ window.serializeProject = async function(isCloudSave = false) {
     // ==========================================================
     const projNameInput = document.getElementById('projectName');
     const snapshot = { 
-        projectName: projNameInput ? projNameInput.value : "My Awesome Project", // ÚJ SOR
+        projectName: projNameInput ? projNameInput.value : "My Project",
         bpm: bpm, 
         timeSig: [...timeSig],
         tracks: [] 
@@ -3490,8 +3490,9 @@ if (newProjectBtn) {
         // 6. Nézet és Név (Scroll és Playhead) visszaállítása
         const projNameInput = document.getElementById('projectName');
         if (projNameInput) {
-            projNameInput.value = "My Awesome Project";
+            projNameInput.value = "My Project";
             projNameInput.style.display = 'none';
+            document.title = "demoMaker BETA – Online DAW";
         }
         if (typeof setScroll === 'function') setScroll(0);
         updatePlayheadVisuals();
