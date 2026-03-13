@@ -697,6 +697,12 @@ h1, h2, h3 {
   cursor: text;
   border-bottom: 1px solid rgba(100, 100, 100, 0.5);
   transition: border-color 0.3s ease, color 0.3s ease;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
 }
 
 .track-inspector .track-name:focus {
@@ -709,8 +715,6 @@ h1, h2, h3 {
     background: rgba(255, 255, 255, 0.06); /* Enyhe accent háttér */
     border-left: 6px solid #fff; /* Fehér csík jelzi, hogy ez az aktív */
 }
-
-
 
 /* --- KLIP SZÍNEK TÍPUS SZERINT --- */
 
