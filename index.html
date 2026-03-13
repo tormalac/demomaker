@@ -159,7 +159,7 @@
 
     <main>
         <div class="track-list" id="trackList">
-           <input type="text" id="projectName" class="project-name-input" value="My Awesome Project" spellcheck="false" title="Project Name">
+           <input type="text" id="projectName" class="project-name-input" value="My Project" spellcheck="false" title="Project Name">
 
            <div class="timeline-ruler" id="timelineRuler">
                <div class="ruler-inner" id="rulerInner">
@@ -309,7 +309,7 @@ document.querySelectorAll('.project-btn').forEach(btn => {
             }
 
             const projNameInput = document.getElementById('projectName');
-            const defaultName = projNameInput ? projNameInput.value : "My Awesome Project";
+            const defaultName = projNameInput ? projNameInput.value : "My Project";
             
             const projectName = prompt("Adj egy nevet a dalnak:", defaultName);
             if (!projectName) return;
@@ -522,12 +522,13 @@ window.loadProject = async function(projectData) {
     document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
     trackCounter = 0;
 
-    if (projectData.projectName) {
-        const projNameInput = document.getElementById('projectName');
-        if (projNameInput) {
-            projNameInput.value = projectData.projectName || "My Awesome Project";
-            projNameInput.style.display = 'block';
-        }
+    const projNameInput = document.getElementById('projectName');
+    if (projNameInput) {
+        // Ha nincs a fájlban mentett név, kapja a "My Project"-et
+        projNameInput.value = projectData.projectName || "My Project";
+        projNameInput.style.display = 'block';
+        // Bónusz: frissítjük a böngésző fülének (document.title) nevét is!
+        document.title = projNameInput.value + " – demoMaker BETA"; 
     }
     
     const rulerEl = document.getElementById('timelineRuler');
