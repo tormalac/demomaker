@@ -3539,6 +3539,9 @@ if (newProjectBtn) {
         }
         if (typeof setScroll === 'function') setScroll(0);
         updatePlayheadVisuals();
+
+        window.currentCloudProjectId = null;
+        window.currentCloudProjectName = null;
         
         // 7. Adunk egy friss, üres sávot indulásként (mint a program legelső megnyitásakor)
         createTrack('guitar');
