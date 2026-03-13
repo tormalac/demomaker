@@ -252,7 +252,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -266,6 +266,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+window.currentCloudProjectId = null;
+window.currentCloudProjectName = null;
 
 // --- Auth ---
 const emailInput = document.getElementById('email');
@@ -356,15 +359,36 @@ document.querySelectorAll('.project-btn').forEach(btn => {
                 if (data.url) {
                     uploadedFileIds.push(data.public_id);
 
-                    await addDoc(collection(db, "projects"), {
+                    // --- FELÜLÍRÁS (SAVE) VAGY ÚJ MENTÉS (SAVE AS) LOGIKA ---
+                    if (window.currentCloudProjectId && projectName === window.currentCloudProjectName) {
+        
+                    // HA NEM VÁLTOZOTT A NÉV ÉS VAN ID: FELÜLÍRJUK AZ EDDIGIT
+                    const projectRef = doc(db, "projects", window.currentCloudProjectId);
+                    await updateDoc(projectRef, {
+                       url: data.url,
+                       fileIds: uploadedFileIds, 
+                       updatedAt: new Date().toISOString() // Rögzítjük a frissítés idejét
+                    });
+                    alert(`A "${projectName}" sikeresen frissítve a felhőben!`);
+        
+                 } else {
+        
+                      // HA ÚJ A NÉV, VAGY TELJESEN ÚJ PROJEKT: ÚJKÉNT MENTJÜK
+                    const docRef = await addDoc(collection(db, "projects"), {
                         uid: user.uid,
                         name: projectName,
                         url: data.url,
                         fileIds: uploadedFileIds, 
                         createdAt: new Date().toISOString()
                     });
-                    alert(`A "${projectName}" sikeresen mentve a fiókodba!`);
-                }
+        
+                    // Megjegyezzük az új azonosítókat, hogy a KÖVETKEZŐ kattintás már felülírás legyen
+                    window.currentCloudProjectId = docRef.id;
+                    window.currentCloudProjectName = projectName;
+        
+                    alert(`A "${projectName}" új projektként mentve!`);
+                    }
+                 }
             } catch(e) {
                 // Ha hiba volt, állítsuk le a stoppert
                 isUploadFinished = true;
@@ -458,10 +482,13 @@ async function loadCloudProjects(uid) {
                 try {
                     const response = await fetch(data.url);
                     const projectData = await response.json();
-                    
-                    // ÚJ: Kényszerítjük, hogy a felhőben (Firebase) tárolt név legyen a betöltött projekt neve!
+        
                     projectData.projectName = data.name; 
-                    
+        
+                    // --- ÚJ: ELTÁROLJUK AZ ID-T ÉS A NEVET ---
+                    window.currentCloudProjectId = docSnap.id; 
+                    window.currentCloudProjectName = data.name;
+        
                     window.loadProject(projectData);
                 } catch(e) { alert("Hiba a betöltéskor: " + e.message); }
             };
