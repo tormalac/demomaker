@@ -1629,33 +1629,87 @@ function performCut(e) {
     }
 
     let cutCount = 0;
-    const cutUndoData = []; // --- ÚJ: Emlékezünk a vágásokra ---
+    const cutUndoData = []; // Undo memóriába kerülnek a vágások
 
     selectedClips.forEach(selected => {
         const clipStart = parseFloat(selected.dataset.start);
         const clipDur = parseFloat(selected.dataset.duration);
         const clipEnd = clipStart + clipDur;
         
+        // Csak akkor vágunk, ha a playhead (piros vonal) metszi a klipet
         if (currentPlayTime > clipStart && currentPlayTime < clipEnd) {
-            const buffer = selected.audioBuffer;
             const parent = selected.parentElement; 
             const name = selected.querySelector('.clip-name').textContent;
-            const originalTrim = parseFloat(selected.dataset.trimOffset || 0);
             const cutPointRelative = currentPlayTime - clipStart;
-            const assetId = selected.dataset.assetId;
-            
-            // 1. Eredeti klip eltüntetése a DOM-ból (de a memóriában marad!)
-            selected.remove(); 
-            
-            // 2. BAL OLDALI DARAB
-            const leftPart = addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative, assetId);
-            
-            // 3. JOBB OLDALI DARAB
             const remainingDuration = clipDur - cutPointRelative;
-            const newTrimOffset = originalTrim + cutPointRelative;
-            const rightPart = addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration, assetId);
             
-            // --- ÚJ: Bedobjuk a memóriába a vágás adatait ---
+            selected.remove(); // 1. Eredeti klip eltüntetése a DOM-ból
+            
+            let leftPart, rightPart;
+
+            // --- A) HA MIDI (PATTERN) KLIP ---
+            if (selected.dataset.type === 'pattern') {
+                // ÚJ: Kiszámoljuk, pontosan hány ütem (bar) maradt a bal és jobb oldalon
+                const secPerBar = secondsPerBar();
+                const leftBars = cutPointRelative / secPerBar;
+                const rightBars = remainingDuration / secPerBar;
+
+                // Bal oldali darab
+                leftPart = addPatternClipToTrack(parent, name, clipStart, leftBars);
+                leftPart.dataset.duration = cutPointRelative;
+                leftPart.style.width = `${cutPointRelative * PX_PER_SECOND}px`;
+                leftPart.patternData = { lengthInBars: leftBars, notes: [] };
+
+                // Jobb oldali darab
+                rightPart = addPatternClipToTrack(parent, name, currentPlayTime, rightBars);
+                rightPart.dataset.duration = remainingDuration;
+                rightPart.style.width = `${remainingDuration * PX_PER_SECOND}px`;
+                rightPart.patternData = { lengthInBars: rightBars, notes: [] };
+
+                // Hangjegyek (kotta) matematikai szétosztása a vágás helye alapján
+                selected.patternData.notes.forEach(note => {
+                    if (note.start < cutPointRelative) {
+                        let leftNote = JSON.parse(JSON.stringify(note));
+                        
+                        // ÚJ, PROFI FUNKCIÓ: Ha egy hosszú szintihang átlóg a vágáson, méretre vágjuk!
+                        if (leftNote.start + leftNote.duration > cutPointRelative) {
+                            leftNote.duration = cutPointRelative - leftNote.start;
+                        }
+                        
+                        leftPart.patternData.notes.push(leftNote);
+                    } else {
+                        let rightNote = JSON.parse(JSON.stringify(note));
+                        rightNote.start = rightNote.start - cutPointRelative; // Új kezdőponthoz igazítjuk
+                        rightPart.patternData.notes.push(rightNote);
+                    }
+                });
+
+                // Grafikák újrarajzolása
+                const trackContainer = parent.closest('.track-container');
+                const waveColor = getTrackColor(trackContainer);
+                
+                const leftCanvas = leftPart.querySelector('canvas');
+                leftCanvas.width = Math.max(1, cutPointRelative * PX_PER_SECOND);
+                drawPattern(leftCanvas, leftPart, waveColor);
+
+                const rightCanvas = rightPart.querySelector('canvas');
+                rightCanvas.width = Math.max(1, remainingDuration * PX_PER_SECOND);
+                drawPattern(rightCanvas, rightPart, waveColor);
+            }
+
+            // --- B) HA AUDIO KLIP ---
+            else {
+                const buffer = selected.audioBuffer;
+                const originalTrim = parseFloat(selected.dataset.trimOffset || 0);
+                const assetId = selected.dataset.assetId;
+                
+                leftPart = addClipToTrack(parent, buffer, name, clipStart, originalTrim, cutPointRelative, assetId);
+                
+                const newTrimOffset = originalTrim + cutPointRelative;
+                rightPart = addClipToTrack(parent, buffer, name, currentPlayTime, newTrimOffset, remainingDuration, assetId);
+            }
+
+            // Undo verembe pakolás
             cutUndoData.push({
                 parent: parent,
                 originalClip: selected,
@@ -1666,7 +1720,6 @@ function performCut(e) {
         }
     });
 
-    // --- ÚJ: Ha történt sikeres vágás, mentsük el az undo verembe ---
     if (cutCount > 0) {
         pushToUndoStack('cut_clips', cutUndoData);
     } else {
@@ -3258,17 +3311,6 @@ document.addEventListener('keydown', (e) => {
 createTrack('guitar');
 updateMeters();
 
-// ==========================================================
-// --- BÖNGÉSZŐ BEZÁRÁS / FRISSÍTÉS VÉDELEM ---
-// ==========================================================
-window.addEventListener('beforeunload', (e) => {
-    const hasTracks = document.querySelectorAll('.track-container').length > 0;
-    if (hasTracks) {
-        e.preventDefault();
-        e.returnValue = ''; // A modern böngészők ezt kérik a figyelmeztetéshez
-    }
-});
-
 // --- AUDIO SEGÉDFÜGGVÉNYEK A MENTÉSHEZ ---
 function audioBufferToWavBlob(buffer) {
     const left = [new Float32Array(buffer.getChannelData(0))];
@@ -3500,5 +3542,143 @@ if (newProjectBtn) {
         
         // 7. Adunk egy friss, üres sávot indulásként (mint a program legelső megnyitásakor)
         createTrack('guitar');
+        if (typeof clearLocalDB === 'function') clearLocalDB('last_session');
     });
 }
+
+// ==========================================================
+// --- AUTOSAVE ENGINE (INDEXED DB) ---
+// ==========================================================
+const DB_NAME = "DemoMakerAutosaveDB";
+const STORE_NAME = "autosaves";
+
+// 1. Adatbázis inicializálása
+function initAutosaveDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// 2. Mentés a háttérben
+async function saveToLocalDB(key, data) {
+    const db = await initAutosaveDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        tx.objectStore(STORE_NAME).put(data, key);
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+    });
+}
+
+// 3. Visszatöltés
+async function loadFromLocalDB(key) {
+    const db = await initAutosaveDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const request = tx.objectStore(STORE_NAME).get(key);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = reject;
+    });
+}
+
+// 4. Törlés
+async function clearLocalDB(key) {
+    const db = await initAutosaveDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        tx.objectStore(STORE_NAME).delete(key);
+        tx.oncomplete = resolve;
+    });
+}
+
+// --- ÚJ: OKOS ELLENŐRZÉS: Üres-e a projekt? ---
+// Ha csak 1 sáv van, nincsenek klipek, és nem írták át a nevét, az üresnek számít!
+function isProjectEmpty() {
+    const tracks = document.querySelectorAll('.track-container');
+    const clips = document.querySelectorAll('.audio-clip');
+    const projName = document.getElementById('projectName');
+    const nameIsDefault = !projName || projName.value === "My Project" || projName.value === "";
+    
+    return tracks.length <= 1 && clips.length === 0 && nameIsDefault;
+}
+
+// --- AUTOSAVE IDŐZÍTŐ ---
+let autosaveInterval;
+
+function startAutoSave() {
+    // 1 percenként (60000 ms) fut le a nagyobb biztonságért
+    autosaveInterval = setInterval(async () => {
+        if (isPlaying || isProjectEmpty()) return; // Ne mentsen üreset, és ne akadjon meg lejátszás közben!
+
+        try {
+            console.log("Autosaving to DB...");
+            const projectData = await window.serializeProject(false);
+            await saveToLocalDB('last_session', projectData);
+        } catch (e) {
+            console.error("Autosave failed:", e);
+        }
+    }, 60000); 
+}
+
+// --- BIZTONSÁGI HÁLÓ FRISSÍTÉSKOR (F5) ---
+window.addEventListener('beforeunload', (e) => {
+    // CSAK AKKOR ZAKLAT, HA TÉNYLEG VAN ÉRTÉKES ADAT A SÁVOKON
+    if (!isProjectEmpty()) {
+        // Ha azonnal lementenénk itt (visibilitychange), a böngésző kinyírná a szálat. 
+        // Ezért kell a figyelmeztető ablak, ami ad időt, vagy megakadályozza a véletlen kilépést.
+        e.preventDefault();
+        e.returnValue = 'Nem mentett változásaid lehetnek! Biztosan elhagyod az oldalt?'; 
+    }
+});
+
+// --- BETÖLTÉS VIZSGÁLATA INDULÁSKOR ---
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const savedData = await loadFromLocalDB('last_session');
+        
+        if (savedData && savedData.tracks && savedData.tracks.length > 0) {
+            // Ellenőrizzük, hogy a memóriában lévő mentés nem egy üres projekt-e
+            const isSavedEmpty = savedData.tracks.length === 1 && savedData.tracks[0].clips.length === 0;
+            
+            if (!isSavedEmpty) {
+                if (confirm("Találtam egy korábbi, félbehagyott projektet. Szeretnéd visszaállítani az audiókkal együtt?")) {
+                    await window.loadProject(savedData);
+                } else {
+                    await clearLocalDB('last_session');
+                }
+            } else {
+                // Ha csak szemetet (üres sávot) talált, törli kérdés nélkül
+                await clearLocalDB('last_session');
+            }
+        }
+    } catch(e) {
+        console.error("Hiba az Autosave ellenőrzésekor", e);
+    }
+    
+    startAutoSave();
+});
+
+// --- OKOS MENTÉS FÜLVÁLTÁSKOR / HÁTTÉRBE RAKÁSKOR ---
+document.addEventListener('visibilitychange', async () => {
+    // Ha a felhasználó átvált egy másik tabra, vagy mobilon leteszi az appot
+    if (document.visibilityState === 'hidden') {
+        const hasTracks = document.querySelectorAll('.track-container').length > 0;
+        if (!hasTracks || isPlaying) return;
+
+        try {
+            console.log("App moved to background. Forcing quick save...");
+            const projectData = await window.serializeProject(false);
+            await saveToLocalDB('last_session', projectData);
+        } catch (e) {
+            console.error("Force save failed:", e);
+        }
+    }
+});
