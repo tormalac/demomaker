@@ -2227,9 +2227,6 @@ function resetAllInteractions() {
 
     isResizing = false;
     resizeTarget = null;
-
-    isResizing = false;
-    resizeTarget = null;
     
     // Klip dobásának befejezése, ha épp fogtuk
     if (isDraggingClip) handleClipDragEnd();
@@ -2907,7 +2904,44 @@ function nextNote() {
     if (currentQuarterNote === timeSig[0]) currentQuarterNote = 0;
 }
 
+function handleLoopReset() {
+    // 1. Megállítjuk a már ütemezett, túlnyúló hangokat
+    audioSources.forEach(src => { try { src.stop(); } catch(e) {} });
+    audioSources = [];
+    clearTimeout(timerID); // Metronóm (click) leállítása egy pillanatra
+
+    // 2. Visszaugrunk a Loop elejére
+    currentPlayTime = loopStartSec;
+    startOffset = loopStartSec;
+    startPlayTime = audioCtx.currentTime; // Az "új" 0. másodperc most van!
+
+    // 3. Metronóm újraütemezése
+    const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
+    const beatsPassed = Math.round((startOffset / secondsPerClick) * 10000) / 10000;
+    const nextBeatIndex = Math.ceil(beatsPassed);
+    currentQuarterNote = nextBeatIndex % timeSig[0];
+    const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerClick;
+    nextNoteTime = audioCtx.currentTime + nextBeatDelay;
+
+    scheduler(); // Újraindítjuk a schedulert az új időből!
+
+    // 4. Klipek újraindítása az új pozícióból!
+    scheduleClips(startOffset);
+}
+
 function scheduler() {
+    // --- ÚJ: LOOP ELLENŐRZÉS A HÁTTÉRBEN IS ---
+    if (isPlaying) {
+        const elapsed = audioCtx.currentTime - startPlayTime;
+        const exactPlayTime = startOffset + elapsed;
+        
+        const loopBtn = document.querySelector('.loop-btn');
+        if (loopBtn && loopBtn.classList.contains('active') && exactPlayTime >= loopEndSec) {
+            handleLoopReset();
+            return; // Fontos! Kilépünk, hogy a reset indítsa újra a rendszert, ne mi!
+        }
+    }
+
     while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
         playClickSound(nextNoteTime, currentQuarterNote);
         const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
@@ -3046,35 +3080,6 @@ function updatePlayheadAnim() {
     if (!isPlaying) return;
     const elapsed = audioCtx.currentTime - startPlayTime;
     currentPlayTime = startOffset + elapsed;
-
-    // --- LOOP LOGIKA ITT ---
-    const loopBtn = document.querySelector('.loop-btn');
-    if (loopBtn && loopBtn.classList.contains('active') && currentPlayTime >= loopEndSec) {
-        
-        // 1. Megállítjuk a már ütemezett, túlnyúló hangokat
-        audioSources.forEach(src => { try { src.stop(); } catch(e) {} });
-        audioSources = [];
-        clearTimeout(timerID); // Metronóm (click) leállítása egy pillanatra
-
-        // 2. Visszaugrunk a Loop elejére
-        currentPlayTime = loopStartSec;
-        startOffset = loopStartSec;
-        startPlayTime = audioCtx.currentTime; // Az "új" 0. másodperc most van!
-
-        // 3. Metronóm újraütemezése
-        const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
-        const beatsPassed = Math.round((startOffset / secondsPerClick) * 10000) / 10000;
-        const nextBeatIndex = Math.ceil(beatsPassed);
-        currentQuarterNote = nextBeatIndex % timeSig[0];
-        const nextBeatDelay = (nextBeatIndex - beatsPassed) * secondsPerClick;
-        nextNoteTime = audioCtx.currentTime + nextBeatDelay;
-
-        scheduler();
-
-        // 4. Klipek újraindítása az új pozícióból!
-        scheduleClips(startOffset);
-    }
-    // --- LOOP LOGIKA VÉGE ---
 
     const screenX = 164 + (currentPlayTime * PX_PER_SECOND) - globalScrollX;
     const containerWidth = window.innerWidth;
@@ -3279,21 +3284,6 @@ function blobToBase64(blob) {
     });
 }
 
-// --- AUDIO SEGÉDFÜGGVÉNYEK A MENTÉSHEZ ---
-function audioBufferToWavBlob(buffer) {
-    const left = [new Float32Array(buffer.getChannelData(0))];
-    const right = buffer.numberOfChannels > 1 ? [new Float32Array(buffer.getChannelData(1))] : [new Float32Array(buffer.getChannelData(0))];
-    return exportToWav(left, right, buffer.length, buffer.sampleRate);
-}
-
-function blobToBase64(blob) {
-    return new Promise((resolve, _) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(blob);
-    });
-}
-
 // --- PROJEKT MENTÉSE (SERIALIZÁCIÓ) - FELHŐ/LOKÁL LOGIKÁVAL ---
 window.serializeProject = async function(isCloudSave = false) {
     
@@ -3460,9 +3450,20 @@ if (newProjectBtn) {
             if (track.trackPannerNode) track.trackPannerNode.disconnect();
             if (track.analyserNode) track.analyserNode.disconnect();
             if (track.fxOutputNode) track.fxOutputNode.disconnect();
+            
+            // --- ÚJ: FX Lánc és LFO-k teljes takarítása ---
+            if (track.fxChain && track.fxChain.length > 0) {
+                track.fxChain.forEach(fx => {
+                    if (fx.instance.output) fx.instance.output.disconnect();
+                    if (fx.instance.lfo) {
+                        try { fx.instance.lfo.stop(); } catch(e) {}
+                    }
+                });
+            }
+            
             track.remove();
         });
-        
+
         // Keverő csatornák törlése (kivéve a Master)
         document.querySelectorAll('.mixer-channel:not(.master-channel)').forEach(m => m.remove());
 
