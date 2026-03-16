@@ -402,48 +402,39 @@ fxStyles.innerHTML = `
     .plugin-qtron .knob-value { color: #222; background: rgba(255,255,255,0.5); padding: 2px 4px; border-radius: 2px;}
     .knob.q-knob { background: #111; border: 2px solid #333; width: 50px; height: 50px;}
 
-   /* --- Z Gate --- */
-   .plugin-container.z-gate {
-        background: #0a0a0a;
-        border: 2px solid #333;
-        padding: 30px;
-        text-align: center;
-        position: relative;
+   /* --- Z-GATE (Fortin Zuul Vibe) UI --- */
+    .plugin-zgate {
+        background: #111; border: 2px solid #222; border-radius: 4px;
+        width: 100%; max-width: 250px; padding: 30px 20px;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.7);
+        display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     }
-    .z-gate .plugin-brand {
-        color: #555;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
-        letter-spacing: 4px;
-        margin-bottom: 20px;
+    .zgate-header {
+        color: #ddd; font-family: 'Arial Black', sans-serif; font-size: 1.6rem;
+        letter-spacing: 2px; margin-bottom: 25px; text-transform: uppercase;
     }
-    .z-gate .gate-status {
-        width: 12px; height: 12px;
-        background: #222;
-        border-radius: 50%;
-        margin: 0 auto 15px;
-        box-shadow: 0 0 5px rgba(0,0,0,0.5);
-        border: 1px solid #000;
+    .zgate-header span { color: #556b2f; }
+    
+    .zuul-led {
+        width: 14px; height: 14px; background: #1a1a1a; border-radius: 50%;
+        margin-bottom: 30px; border: 2px solid #000;
+        box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+        transition: background 0.05s ease, box-shadow 0.05s ease;
     }
-    /* Aktív állapotban (amikor a zajt vágja) lehetne piros, de hagyjuk meg a "pro" stílust */
-    .z-gate .knob-group label {
-        display: block;
-        margin-top: 10px;
-        font-size: 10px;
-        color: #888;
+    /* Amikor nyitva van a kapu */
+    .zuul-led.active {
+        background: #7fff00; 
+        box-shadow: 0 0 12px #7fff00, inset 0 0 5px #fff;
+        border-color: #55a000;
     }
-    .z-gate .knob.vertical {
-        -webkit-appearance: none;
-        width: 100%; height: 5px;
-        background: #222;
-        border-radius: 10px;
+    
+    .knob.zuul-knob {
+        background: radial-gradient(circle at 50% 10%, #333, #0a0a0a); 
+        border: 2px solid #000; width: 70px; height: 70px; /* Óriási poti */
+        box-shadow: 0 8px 15px rgba(0,0,0,0.8);
     }
-    .z-gate .knob.vertical::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        width: 40px; height: 20px;
-        background: #444;
-        border: 1px solid #666;
-        cursor: pointer;
+    .knob.zuul-knob::after {
+        background: #fff; width: 4px; height: 18px; top: 8px; border-radius: 2px;
     }
     
 `;
@@ -1510,62 +1501,69 @@ class JunoChorus {
     }
 }
 
-// --- Fortin Zuul Noise Gate ---
+// --- Fortin Zuul stílusú TRUE VCA Noise Gate ---
 class ZGate {
-    constructor(context) {
-        this.context = context;
-        this.input = context.createGain();
-        this.output = context.createGain();
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
 
-        // DynamicsCompressorNode-ot használunk expanderként
-        this.gate = context.createDynamicsCompressor();
+        // VCA (Voltage Controlled Amplifier)
+        this.vca = ctx.createGain();
+        this.vca.gain.value = 0; // Alapból zárva
+
+        // Analizáló a hangerő követéséhez
+        this.analyzer = ctx.createScriptProcessor(1024, 1, 1);
         
-        // Alapbeállítások a "Z-style" zajzárhoz
-        this.gate.threshold.value = -40; // Küszöb (ezt fogja a poti állítani)
-        this.gate.ratio.value = 20;      // Drasztikus vágás a küszöb alatt
-        this.gate.attack.value = 0.002;  // Ultra-gyors nyitás (2ms), hogy ne maradj le a pengetésről
-        this.gate.knee.value = 5;        // Egy kis lágyság a görbébe, hogy ne pattogjon
-        this.gate.release.value = 0.1;   // 100ms lecsengés, ez menti meg a hang kitartását
+        this.threshold = 0.005; 
+        this.releaseSpeed = 0.02; 
+        this.isOpen = false;
+        this.onStateChange = null; // Ezt a UI fogja használni a LED-hez!
 
-        this.input.connect(this.gate);
-        this.gate.connect(this.output);
+        this.analyzer.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+            let sum = 0;
+            for (let i = 0; i < inputData.length; i++) {
+                sum += inputData[i] * inputData[i];
+            }
+            let rms = Math.sqrt(sum / inputData.length);
 
-        this.ui = this.createUI();
+            // Ha átlépi a küszöböt, kinyit (1.0), különben bezár (0.0)
+            let targetGain = rms > this.threshold ? 1.0 : 0.0;
+            let currentGain = this.vca.gain.value;
+
+            if (targetGain > currentGain) {
+                this.vca.gain.value += (targetGain - currentGain) * 0.8; // Gyors attack
+            } else {
+                this.vca.gain.value += (targetGain - currentGain) * this.releaseSpeed; // Sima release
+            }
+
+            // LED állapot figyelése (ha > 0.5, akkor nyitva van)
+            const currentlyOpen = this.vca.gain.value > 0.5;
+            if (this.isOpen !== currentlyOpen) {
+                this.isOpen = currentlyOpen;
+                // Szólunk a UI-nak, hogy változott az állapot
+                if (this.onStateChange) this.onStateChange(this.isOpen);
+            }
+        };
+
+        this.dummyOutput = ctx.createGain();
+        this.dummyOutput.gain.value = 0;
+
+        // Routing
+        this.input.connect(this.vca);
+        this.vca.connect(this.output);
+        this.input.connect(this.analyzer);
+        this.analyzer.connect(this.dummyOutput);
+        this.dummyOutput.connect(this.ctx.destination); 
     }
 
-    updateParams(val) {
-        // A poti értéke 0-100-ig jön, ezt skálázzuk -80dB és -10dB közé
-        const db = -80 + (val * 0.7);
-        this.gate.threshold.setValueAtTime(db, this.context.currentTime);
+    setThreshold(val) {
+        // Poti: 0-100. Skálázás logaritmikusan dB-be
+        const db = -70 + (val * 0.6); 
+        this.threshold = Math.pow(10, db / 20);
     }
-
-    createUI() {
-        const container = document.createElement('div');
-        container.className = 'plugin-container z-gate';
-        container.innerHTML = `
-            <div class="plugin-brand">Z-GATE // INDUSTRIAL</div>
-            <div class="plugin-main">
-                <div class="gate-status" id="gate-led"></div>
-                <div class="knob-group">
-                    <input type="range" class="knob vertical" id="gate-threshold" min="0" max="100" value="60">
-                    <label>THRESHOLD</label>
-                </div>
-                <div class="plugin-info">
-                    <span>ADVANCED HYSTERESIS SYSTEM</span>
-                </div>
-            </div>
-        `;
-
-        const thresholdInput = container.querySelector('#gate-threshold');
-        thresholdInput.addEventListener('input', (e) => {
-            this.updateParams(e.target.value);
-        });
-
-        return container;
-    }
-}
-
-// --- 12. MXR Phase 90 (4 fokozatú Allpass) ---
+}// --- 12. MXR Phase 90 (4 fokozatú Allpass) ---
 class MXRPhaser {
     constructor(ctx) {
         this.ctx = ctx;
@@ -2170,6 +2168,43 @@ function createJunoUI(pluginInstance) {
     return wrapper;
 }
 
+// --- Z-GATE (ZUUL STYLE) UI ---
+function createZGateUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-zgate';
+    wrapper.innerHTML = `
+        <div class="zgate-header">Z-GATE<span> //</span></div>
+        <div class="zuul-led" id="zgate-led"></div>
+        <div class="amp-panel" style="justify-content: center;">
+            <div class="knob-container">
+                <div class="knob zuul-knob" data-param="threshold" data-min="0" data-max="100" data-val="55"></div>
+                <div class="knob-value" style="display:none;">55</div>
+                <div class="knob-label">KEY</div>
+            </div>
+        </div>
+    `;
+
+    const led = wrapper.querySelector('#zgate-led');
+
+    // Bekötjük a DSP osztály LED callbackjét
+    pluginInstance.onStateChange = (isOpen) => {
+        // A requestAnimationFrame garantálja, hogy nem akad meg a UI
+        requestAnimationFrame(() => {
+            if (isOpen) {
+                led.classList.add('active');
+            } else {
+                led.classList.remove('active');
+            }
+        });
+    };
+
+    // Alapérték beállítása a betöltéskor
+    pluginInstance.setThreshold(55);
+
+    setupKnobs(wrapper, pluginInstance, 'amp'); 
+    return wrapper;
+}
+
 // --- MXR PHASE 90 UI ---
 function createMXRUI(pluginInstance) {
     const wrapper = document.createElement('div');
@@ -2345,6 +2380,7 @@ function setupKnobs(wrapper, pluginInstance, type) {
             else if (param === 'mix') pluginInstance.setMix?.(newVal);
             else if (param === 'time') pluginInstance.setTime?.(newVal);
             else if (param === 'damping') pluginInstance.setDamping?.(newVal);
+            else if (param === 'threshold') pluginInstance.setThreshold?.(newVal);
         }
     };
 
@@ -2405,25 +2441,25 @@ const modalHTML = `
                     <div class="add-fx-wrap">
                         <button class="add-fx-btn" id="add-fx-btn">+ Add Plugin</button>
                         <div id="plugin-picker">
-                            <button class="plugin-pick-btn" data-plugin="nv73">N-73 Preamp & EQ</button>
-                            <button class="plugin-pick-btn" data-plugin="la2a">L-2A Leveler</button>
-                            <button class="plugin-pick-btn" data-plugin="dbx">dbx 160 Punch Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="nv73">N73 Preamp</button>
+                            <button class="plugin-pick-btn" data-plugin="la2a">L2A Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="dbx">db 160 Punch Comp</button>
                             <button class="plugin-pick-btn" data-plugin="zgate">Z-GATE</button>
-                            <button class="plugin-pick-btn" data-plugin="ts808">TS-808 Tube Screamer</button>
-                            <button class="plugin-pick-btn" data-plugin="muff">Big Muff Fuzz</button>
-                            <button class="plugin-pick-btn" data-plugin="qtron">Q-Tron Env Filter</button>
-                            <button class="plugin-pick-btn" data-plugin="flanger">M-117 Flanger</button>
+                            <button class="plugin-pick-btn" data-plugin="ts808">TS808 OD</button>
+                            <button class="plugin-pick-btn" data-plugin="muff">Big Fuzz</button>
+                            <button class="plugin-pick-btn" data-plugin="qtron">Q Tron Envelope</button>
+                            <button class="plugin-pick-btn" data-plugin="flanger">M17 Flanger</button>
                             <button class="plugin-pick-btn" data-plugin="mxr">Phase 90</button>                            
                             <button class="plugin-pick-btn" data-plugin="brit">Brit 800 Amp</button>
                             <button class="plugin-pick-btn" data-plugin="djent">Djent 51 Amp</button>
-                            <button class="plugin-pick-btn" data-plugin="sansamp">T21 Bass DI</button>
-                            <button class="plugin-pick-btn" data-plugin="darkglass">DG B7K</button>
+                            <button class="plugin-pick-btn" data-plugin="sansamp">T21 Bass Amp</button>
+                            <button class="plugin-pick-btn" data-plugin="darkglass">DG B7K Bass Amp</button>
                             <button class="plugin-pick-btn" data-plugin="juno">Juno-60 Chorus</button>
-                            <button class="plugin-pick-btn" data-plugin="lexicon">224 Digital Reverb</button>
+                            <button class="plugin-pick-btn" data-plugin="lexicon">Lex 24 Digital Reverb</button>
                             <button class="plugin-pick-btn" data-plugin="spaceecho">RE-201 Space Echo</button>
                             <button class="plugin-pick-btn" data-plugin="tape">Vintage Tape Sat</button>
-                            <button class="plugin-pick-btn" data-plugin="ssl">SSL Master Bus Comp</button>
-                            <button class="plugin-pick-btn" data-plugin="maximizer">L-MAX Brickwall</button>
+                            <button class="plugin-pick-btn" data-plugin="ssl">S2L Master Bus Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="maximizer">LMAX Brickwall Limiter</button>
                         </div>
                     </div>
 
@@ -2517,7 +2553,7 @@ document.addEventListener('click', (e) => {
         } else if (pluginType === 'la2a') {
             plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'L2A Comp';
         } else if (pluginType === 'dbx') { 
-            plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'db 160 Comp';
+            plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'db 160 Punch Comp';
         } else if (pluginType === 'ssl') { 
             plugin = new SSLBusCompressor(audioCtx); ui = createSSLUI(plugin); name = 'S2L Master Comp';
         } else if (pluginType === 'spaceecho') {
@@ -2527,7 +2563,7 @@ document.addEventListener('click', (e) => {
         } else if (pluginType === 'juno') { 
             plugin = new JunoChorus(audioCtx); ui = createJunoUI(plugin); name = 'Juno Chorus';
         } else if (pluginType === 'zgate') {
-            plugin = new ZGate(audioCtx); ui = plugin.ui; name = 'Z Gate';
+            plugin = new ZGate(audioCtx); ui = createZGateUI(plugin); name = 'Z-GATE';
         } else if (pluginType === 'ts808') { 
             plugin = new TS808Overdrive(audioCtx); ui = createTS808UI(plugin); name = 'TS808 OD'; 
         } else if (pluginType === 'muff') { 
