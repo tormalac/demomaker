@@ -401,6 +401,50 @@ fxStyles.innerHTML = `
     .plugin-qtron .knob-label { color: #222; font-weight: bold; font-size: 10px;}
     .plugin-qtron .knob-value { color: #222; background: rgba(255,255,255,0.5); padding: 2px 4px; border-radius: 2px;}
     .knob.q-knob { background: #111; border: 2px solid #333; width: 50px; height: 50px;}
+
+   /* --- Z Gate --- */
+   .plugin-container.z-gate {
+        background: #0a0a0a;
+        border: 2px solid #333;
+        padding: 30px;
+        text-align: center;
+        position: relative;
+    }
+    .z-gate .plugin-brand {
+        color: #555;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 4px;
+        margin-bottom: 20px;
+    }
+    .z-gate .gate-status {
+        width: 12px; height: 12px;
+        background: #222;
+        border-radius: 50%;
+        margin: 0 auto 15px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        border: 1px solid #000;
+    }
+    /* Aktív állapotban (amikor a zajt vágja) lehetne piros, de hagyjuk meg a "pro" stílust */
+    .z-gate .knob-group label {
+        display: block;
+        margin-top: 10px;
+        font-size: 10px;
+        color: #888;
+    }
+    .z-gate .knob.vertical {
+        -webkit-appearance: none;
+        width: 100%; height: 5px;
+        background: #222;
+        border-radius: 10px;
+    }
+    .z-gate .knob.vertical::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 40px; height: 20px;
+        background: #444;
+        border: 1px solid #666;
+        cursor: pointer;
+    }
     
 `;
 document.head.appendChild(fxStyles);
@@ -1466,6 +1510,61 @@ class JunoChorus {
     }
 }
 
+// --- Fortin Zuul Noise Gate ---
+class ZGate {
+    constructor(context) {
+        this.context = context;
+        this.input = context.createGain();
+        this.output = context.createGain();
+
+        // DynamicsCompressorNode-ot használunk expanderként
+        this.gate = context.createDynamicsCompressor();
+        
+        // Alapbeállítások a "Z-style" zajzárhoz
+        this.gate.threshold.value = -40; // Küszöb (ezt fogja a poti állítani)
+        this.gate.ratio.value = 20;      // Drasztikus vágás a küszöb alatt
+        this.gate.attack.value = 0.002;  // Ultra-gyors nyitás (2ms), hogy ne maradj le a pengetésről
+        this.gate.knee.value = 5;        // Egy kis lágyság a görbébe, hogy ne pattogjon
+        this.gate.release.value = 0.1;   // 100ms lecsengés, ez menti meg a hang kitartását
+
+        this.input.connect(this.gate);
+        this.gate.connect(this.output);
+
+        this.ui = this.createUI();
+    }
+
+    updateParams(val) {
+        // A poti értéke 0-100-ig jön, ezt skálázzuk -80dB és -10dB közé
+        const db = -80 + (val * 0.7);
+        this.gate.threshold.setValueAtTime(db, this.context.currentTime);
+    }
+
+    createUI() {
+        const container = document.createElement('div');
+        container.className = 'plugin-container z-gate';
+        container.innerHTML = `
+            <div class="plugin-brand">Z-GATE // INDUSTRIAL</div>
+            <div class="plugin-main">
+                <div class="gate-status" id="gate-led"></div>
+                <div class="knob-group">
+                    <input type="range" class="knob vertical" id="gate-threshold" min="0" max="100" value="60">
+                    <label>THRESHOLD</label>
+                </div>
+                <div class="plugin-info">
+                    <span>ADVANCED HYSTERESIS SYSTEM</span>
+                </div>
+            </div>
+        `;
+
+        const thresholdInput = container.querySelector('#gate-threshold');
+        thresholdInput.addEventListener('input', (e) => {
+            this.updateParams(e.target.value);
+        });
+
+        return container;
+    }
+}
+
 // --- 12. MXR Phase 90 (4 fokozatú Allpass) ---
 class MXRPhaser {
     constructor(ctx) {
@@ -2309,6 +2408,7 @@ const modalHTML = `
                             <button class="plugin-pick-btn" data-plugin="nv73">N-73 Preamp & EQ</button>
                             <button class="plugin-pick-btn" data-plugin="la2a">L-2A Leveler</button>
                             <button class="plugin-pick-btn" data-plugin="dbx">dbx 160 Punch Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="zgate">Z-GATE</button>
                             <button class="plugin-pick-btn" data-plugin="ts808">TS-808 Tube Screamer</button>
                             <button class="plugin-pick-btn" data-plugin="muff">Big Muff Fuzz</button>
                             <button class="plugin-pick-btn" data-plugin="qtron">Q-Tron Env Filter</button>
@@ -2413,41 +2513,43 @@ document.addEventListener('click', (e) => {
         
         let plugin, ui, name;
         if (pluginType === 'nv73') {
-            plugin = new NV73Preamp(audioCtx); ui = createNV73UI(plugin); name = 'N-73 Preamp';
+            plugin = new NV73Preamp(audioCtx); ui = createNV73UI(plugin); name = 'N73 Preamp';
         } else if (pluginType === 'la2a') {
-            plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'LA-2A Leveler';
+            plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'L2A Comp';
         } else if (pluginType === 'dbx') { 
-            plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'dbx 160';
+            plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'db 160 Comp';
         } else if (pluginType === 'ssl') { 
-            plugin = new SSLBusCompressor(audioCtx); ui = createSSLUI(plugin); name = 'SSL G-Bus';
+            plugin = new SSLBusCompressor(audioCtx); ui = createSSLUI(plugin); name = 'S2L Master Comp';
         } else if (pluginType === 'spaceecho') {
             plugin = new SpaceEchoDelay(audioCtx); ui = createSpaceEchoUI(plugin); name = 'Space Echo';
         } else if (pluginType === 'lexicon') { 
-            plugin = new LexiconReverb(audioCtx); ui = createLexiconUI(plugin); name = '224 Reverb';
+            plugin = new LexiconReverb(audioCtx); ui = createLexiconUI(plugin); name = 'Lex 24 Reverb';
         } else if (pluginType === 'juno') { 
             plugin = new JunoChorus(audioCtx); ui = createJunoUI(plugin); name = 'Juno Chorus';
+        } else if (pluginType === 'zgate') {
+            plugin = new ZGate(audioCtx); ui = plugin.ui; name = 'Z Gate';
         } else if (pluginType === 'ts808') { 
-            plugin = new TS808Overdrive(audioCtx); ui = createTS808UI(plugin); name = 'TS-808'; 
+            plugin = new TS808Overdrive(audioCtx); ui = createTS808UI(plugin); name = 'TS808 OD'; 
         } else if (pluginType === 'muff') { 
-            plugin = new BigMuffFuzz(audioCtx); ui = createMuffUI(plugin); name = 'Big Muff'; 
+            plugin = new BigMuffFuzz(audioCtx); ui = createMuffUI(plugin); name = 'Big Fuzz'; 
         } else if (pluginType === 'flanger') { 
-            plugin = new M117Flanger(audioCtx); ui = createFlangerUI(plugin); name = 'M-117 Flanger'; 
+            plugin = new M117Flanger(audioCtx); ui = createFlangerUI(plugin); name = 'M17 Flanger'; 
         } else if (pluginType === 'qtron') { 
-            plugin = new QTronFilter(audioCtx); ui = createQTronUI(plugin); name = 'Q-Tron'; 
+            plugin = new QTronFilter(audioCtx); ui = createQTronUI(plugin); name = 'Q Tron Envelope'; 
         } else if (pluginType === 'mxr') { 
             plugin = new MXRPhaser(audioCtx); ui = createMXRUI(plugin); name = 'Phase 90';
         } else if (pluginType === 'tape') {
             plugin = new TapeSaturator(audioCtx); ui = createTapeUI(plugin); name = 'Vintage Tape';
         } else if (pluginType === 'brit') {
-            plugin = new Brit800Amp(audioCtx); ui = createBritUI(plugin); name = 'Brit 800';
+            plugin = new Brit800Amp(audioCtx); ui = createBritUI(plugin); name = 'Brit 800 Amp';
         } else if (pluginType === 'djent') {
-            plugin = new Djent51Amp(audioCtx); ui = createDjentUI(plugin); name = 'Djent 51';
+            plugin = new Djent51Amp(audioCtx); ui = createDjentUI(plugin); name = 'Djent 51 Amp';
         } else if (pluginType === 'maximizer') {
-            plugin = new BrickwallMaximizer(audioCtx); ui = createMaximizerUI(plugin); name = 'L-MAX Limiter';
+            plugin = new BrickwallMaximizer(audioCtx); ui = createMaximizerUI(plugin); name = 'LMAX Limiter';
         } else if (pluginType === 'sansamp') {
-            plugin = new SansAmpDI(audioCtx); ui = createSansAmpUI(plugin); name = 'SansAmp DI';
+            plugin = new SansAmpDI(audioCtx); ui = createSansAmpUI(plugin); name = 'Sans 21 Bass Amp';
         } else if (pluginType === 'darkglass') {
-            plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'Darkglass B7K';
+            plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'DG B7K Bass Amp';
         }
         
         track.fxChain.push({ name, instance: plugin, ui });
