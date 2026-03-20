@@ -2588,7 +2588,7 @@ document.addEventListener('click', (e) => {
             plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'DG B7K Bass Amp';
         }
         
-        track.fxChain.push({ name, instance: plugin, ui });
+        track.fxChain.push({ name, type: pluginType, instance: plugin, ui });
         rebuildFxRouting(track);
         renderFxList(track);
         openPluginUI(track, track.fxChain.length - 1);
@@ -2737,3 +2737,105 @@ function rebuildFxRouting(track) {
         currentNode.connect(track.fxOutputNode);
     }
 }
+
+window.restoreFxChain = function(track, savedFxChain) {
+    if (!savedFxChain || savedFxChain.length === 0) return;
+
+    // 1. Inicializáljuk a routing node-okat
+    if (!track.fxInputNode) {
+        track.fxInputNode = audioCtx.createGain();
+        track.fxOutputNode = audioCtx.createGain();
+        track.fxChain = [];
+
+        if (track.classList.contains('master-channel')) {
+            if (typeof masterPanner !== 'undefined') {
+                masterPanner.disconnect();
+                masterPanner.connect(track.fxInputNode);
+                track.fxOutputNode.connect(masterAnalyser);
+            }
+        } else {
+            track.trackPannerNode.disconnect();
+            track.trackPannerNode.connect(track.fxInputNode);
+            track.fxOutputNode.connect(track.trackGainNode);
+        }
+    }
+
+    // 2. Példányosítjuk a pluginokat
+    savedFxChain.forEach(fxData => {
+        let plugin, ui, name;
+        const pluginType = fxData.type;
+
+        if (pluginType === 'nv73') { plugin = new NV73Preamp(audioCtx); ui = createNV73UI(plugin); name = 'N73 Preamp'; }
+        else if (pluginType === 'la2a') { plugin = new LA2ACompressor(audioCtx); ui = createLA2AUI(plugin); name = 'L2A Comp'; }
+        else if (pluginType === 'dbx') { plugin = new DBX160Compressor(audioCtx); ui = createDBXUI(plugin); name = 'db 160 Punch Comp'; }
+        else if (pluginType === 'ssl') { plugin = new SSLBusCompressor(audioCtx); ui = createSSLUI(plugin); name = 'S2L Master Comp'; }
+        else if (pluginType === 'spaceecho') { plugin = new SpaceEchoDelay(audioCtx); ui = createSpaceEchoUI(plugin); name = 'Space Echo'; }
+        else if (pluginType === 'lexicon') { plugin = new LexiconReverb(audioCtx); ui = createLexiconUI(plugin); name = 'Lex 24 Reverb'; }
+        else if (pluginType === 'juno') { plugin = new JunoChorus(audioCtx); ui = createJunoUI(plugin); name = 'Juno Chorus'; }
+        else if (pluginType === 'zgate') { plugin = new ZGate(audioCtx); ui = createZGateUI(plugin); name = 'Z-GATE'; }
+        else if (pluginType === 'ts808') { plugin = new TS808Overdrive(audioCtx); ui = createTS808UI(plugin); name = 'TS808 OD'; }
+        else if (pluginType === 'muff') { plugin = new BigMuffFuzz(audioCtx); ui = createMuffUI(plugin); name = 'Big Fuzz'; }
+        else if (pluginType === 'flanger') { plugin = new M117Flanger(audioCtx); ui = createFlangerUI(plugin); name = 'M17 Flanger'; }
+        else if (pluginType === 'qtron') { plugin = new QTronFilter(audioCtx); ui = createQTronUI(plugin); name = 'Q Tron Envelope'; }
+        else if (pluginType === 'mxr') { plugin = new MXRPhaser(audioCtx); ui = createMXRUI(plugin); name = 'Phase 90'; }
+        else if (pluginType === 'tape') { plugin = new TapeSaturator(audioCtx); ui = createTapeUI(plugin); name = 'Vintage Tape'; }
+        else if (pluginType === 'brit') { plugin = new Brit800Amp(audioCtx); ui = createBritUI(plugin); name = 'Brit 800 Amp'; }
+        else if (pluginType === 'djent') { plugin = new Djent51Amp(audioCtx); ui = createDjentUI(plugin); name = 'Djent 51 Amp'; }
+        else if (pluginType === 'maximizer') { plugin = new BrickwallMaximizer(audioCtx); ui = createMaximizerUI(plugin); name = 'LMAX Limiter'; }
+        else if (pluginType === 'sansamp') { plugin = new SansAmpDI(audioCtx); ui = createSansAmpUI(plugin); name = 'Sans 21 Bass Amp'; }
+        else if (pluginType === 'darkglass') { plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'DG B7K Bass Amp'; }
+
+        if (!plugin) return; // Ismeretlen típus esetén ugrás
+
+        // 3. Visszaállítjuk a potmétereket (DSP és UI frissítés)
+        if (fxData.params) {
+            let uiType = 'amp'; // Alapértelmezett UI stílus
+            if (['nv73', 'dbx', 'ssl'].includes(pluginType)) uiType = 'nv73';
+            else if (pluginType === 'la2a') uiType = 'la2a';
+            else if (pluginType === 'tape') uiType = 'tape';
+
+            for (const [key, value] of Object.entries(fxData.params)) {
+                // Potméterek
+                const knob = ui.querySelector(`.knob[data-param="${key}"]`);
+                if (knob) {
+                    knob.dataset.val = value;
+                    updateKnobVisuals(knob, parseFloat(value), uiType);
+                    const dspMethod = 'set' + key.charAt(0).toUpperCase() + key.slice(1);
+                    if (typeof plugin[dspMethod] === 'function') plugin[dspMethod](parseFloat(value));
+                }
+
+                // Kapcsolók (LA-2A, Q-Tron)
+                if (key === 'mode') {
+                    const toggle = ui.querySelector('.toggle-switch');
+                    if (toggle) {
+                        toggle.dataset.val = value;
+                        if (typeof plugin.setMode === 'function') plugin.setMode(value);
+                    }
+                }
+
+                // Csúszkák (Maximizer)
+                if (key === 'max-thresh' || key === 'max-ceil') {
+                    const slider = ui.querySelector(`#${key}`);
+                    if (slider) {
+                        slider.value = value;
+                        const displayVal = ui.querySelector(`#${key}-val`);
+                        if (displayVal) displayVal.textContent = parseFloat(value).toFixed(1) + ' dB';
+                        if (key === 'max-thresh') plugin.setThreshold(value);
+                        if (key === 'max-ceil') plugin.setCeiling(value);
+                    }
+                }
+            }
+        }
+
+        track.fxChain.push({ name, type: pluginType, instance: plugin, ui });
+    });
+
+    // Lánc újraépítése és UI "felzöldítése"
+    rebuildFxRouting(track);
+    const insertBtn = track.classList.contains('master-channel') ? track.querySelector('.mix-inserts') : track.querySelector('.track-inserts');
+    if (insertBtn) {
+        insertBtn.style.color = '#00ffd5';
+        insertBtn.style.borderColor = 'rgba(0, 255, 213, 0.4)';
+        insertBtn.style.background = 'rgba(0, 255, 213, 0.05)';
+    }
+};
