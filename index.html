@@ -622,6 +622,13 @@ window.loadProject = async function(projectData) {
                 else pumpBtn.classList.remove('engaged');
             }
         }
+        
+        // AZ FX LÁNC BETÖLTÉST A KÜLÖNÁLLÓ SÁVOKRA:
+        if (tData.fxChain && tData.fxChain.length > 0) {
+            if (typeof window.restoreFxChain === 'function') {
+                window.restoreFxChain(newTrack, tData.fxChain);
+            }
+        }
 
         // --- KLIPEK VISSZAÁLLÍTÁSA (Bisszamenőleges kompatibilitással) ---
         const clipsContainer = newTrack.querySelector('.clips');
@@ -684,6 +691,13 @@ window.loadProject = async function(projectData) {
                 }
             });
         }
+        if (projectData.masterFx && projectData.masterFx.length > 0) {
+            const masterTrack = document.querySelector('.master-channel');
+            if (masterTrack && typeof window.restoreFxChain === 'function') {
+                window.restoreFxChain(masterTrack, projectData.masterFx);
+            }
+        }
+        
     }
 
     drawRuler();
