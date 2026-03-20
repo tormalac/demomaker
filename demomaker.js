@@ -3387,7 +3387,8 @@ window.serializeProject = async function(isCloudSave = false) {
         // FX lánc kimentése
         if (track.fxChain) {
             track.fxChain.forEach(fxItem => {
-                const pluginState = { name: fxItem.name, params: {} };
+                // ITT A VÁLTOZÁS: hozzáadtuk a "type" mezőt!
+                const pluginState = { type: fxItem.type, name: fxItem.name, params: {} };
                 fxItem.ui.querySelectorAll('.knob').forEach(knob => { pluginState.params[knob.dataset.param] = knob.dataset.val; });
                 const toggle = fxItem.ui.querySelector('.toggle-switch');
                 if (toggle) pluginState.params['mode'] = toggle.dataset.val;
@@ -3397,6 +3398,20 @@ window.serializeProject = async function(isCloudSave = false) {
         }
         snapshot.tracks.push(trackData);
     });
+
+    // --- MASTER SÁV FX MENTÉSE ---
+    const masterTrack = document.querySelector('.master-channel');
+    if (masterTrack && masterTrack.fxChain) {
+        snapshot.masterFx = [];
+        masterTrack.fxChain.forEach(fxItem => {
+            const pluginState = { type: fxItem.type, name: fxItem.name, params: {} };
+            fxItem.ui.querySelectorAll('.knob').forEach(knob => { pluginState.params[knob.dataset.param] = knob.dataset.val; });
+            const toggle = fxItem.ui.querySelector('.toggle-switch');
+            if (toggle) pluginState.params['mode'] = toggle.dataset.val;
+            fxItem.ui.querySelectorAll('.max-slider').forEach(slider => { pluginState.params[slider.id] = slider.value; });
+            snapshot.masterFx.push(pluginState);
+        });
+    }
 
     // ==========================================================
     // 2. ASZINKRON FELTÖLTÉS (Innentől a user már nyomkodhatja a DAW-ot)
