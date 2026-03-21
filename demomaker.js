@@ -3724,9 +3724,7 @@ document.addEventListener('visibilitychange', async () => {
 // --- WELCOME / HELP OSD (ONBOARDING) ---
 // ==========================================================
 
-const initWelcomeModal = () => {
-    // 1. CSS Stílusok injektálása (már nincs külön gomb stílus, a project-btn-t használjuk!)
-    const welcomeStyles = document.createElement('style');
+const welcomeStyles = document.createElement('style');
     welcomeStyles.innerHTML = `
         #welcome-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -3738,6 +3736,10 @@ const initWelcomeModal = () => {
             width: 90%; max-width: 550px; padding: 30px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.9); font-family: var(--font-main);
             transform: scale(0.95); opacity: 0; transition: all 0.2s ease-out;
+            
+            /* ÚJ: Mobilbarát görgetés beállítása */
+            max-height: 85vh; 
+            overflow-y: auto; 
         }
         #welcome-modal.show { transform: scale(1); opacity: 1; }
         
@@ -3749,9 +3751,10 @@ const initWelcomeModal = () => {
             background: #222; border: 1px solid #444; border-radius: 3px; 
             padding: 4px 8px; font-family: var(--font-mono); color: #fff; font-size: 0.75rem;
             box-shadow: 0 3px 0 #000; letter-spacing: 1px;
+            white-space: nowrap; /* Megakadályozza, hogy a gombok szövege eltörjön */
         }
         
-        .welcome-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
+        .welcome-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; gap: 15px;}
         .welcome-footer label { font-size: 0.8rem; color: #888; cursor: pointer; display: flex; align-items: center; gap: 8px;}
         
         #close-welcome { 
@@ -3760,6 +3763,14 @@ const initWelcomeModal = () => {
             border-radius: 2px;
         }
         #close-welcome:hover { background: rgba(0, 255, 213, 0.1); box-shadow: 0 0 10px rgba(0,255,213,0.2); }
+
+        /* --- MOBIL NÉZET --- */
+        @media (max-width: 600px) {
+            #welcome-modal { padding: 20px; }
+            .shortcut-grid { grid-template-columns: 1fr; gap: 12px; } /* Egy oszlop mobilon */
+            .welcome-footer { flex-direction: column; align-items: stretch; text-align: center; }
+            #close-welcome { width: 100%; padding: 12px; } /* Nagyobb kattintási felület alul */
+        }
     `;
     document.head.appendChild(welcomeStyles);
 
