@@ -3719,3 +3719,123 @@ document.addEventListener('visibilitychange', async () => {
         }
     }
 });
+
+// ==========================================================
+// --- WELCOME / HELP OSD (ONBOARDING) ---
+// ==========================================================
+
+const initWelcomeModal = () => {
+    // 1. CSS Stílusok injektálása (már nincs külön gomb stílus, a project-btn-t használjuk!)
+    const welcomeStyles = document.createElement('style');
+    welcomeStyles.innerHTML = `
+        #welcome-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 5000;
+            display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        #welcome-modal {
+            background: #111; border: 1px solid var(--accent); border-radius: 6px;
+            width: 90%; max-width: 550px; padding: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9); font-family: var(--font-main);
+            transform: scale(0.95); opacity: 0; transition: all 0.2s ease-out;
+        }
+        #welcome-modal.show { transform: scale(1); opacity: 1; }
+        
+        #welcome-modal h2 { color: var(--accent); font-family: var(--font-mono); text-transform: uppercase; margin-top: 0; letter-spacing: 1px; }
+        .shortcut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 25px 0; }
+        .shortcut-item { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #ccc; }
+        
+        kbd { 
+            background: #222; border: 1px solid #444; border-radius: 3px; 
+            padding: 4px 8px; font-family: var(--font-mono); color: #fff; font-size: 0.75rem;
+            box-shadow: 0 3px 0 #000; letter-spacing: 1px;
+        }
+        
+        .welcome-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
+        .welcome-footer label { font-size: 0.8rem; color: #888; cursor: pointer; display: flex; align-items: center; gap: 8px;}
+        
+        #close-welcome { 
+            background: transparent; border: 1px solid var(--accent); color: var(--accent); 
+            padding: 8px 16px; font-family: var(--font-mono); text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+            border-radius: 2px;
+        }
+        #close-welcome:hover { background: rgba(0, 255, 213, 0.1); box-shadow: 0 0 10px rgba(0,255,213,0.2); }
+    `;
+    document.head.appendChild(welcomeStyles);
+
+    // 2. HTML Modal injektálása
+    const welcomeHTML = `
+        <div id="welcome-overlay">
+            <div id="welcome-modal">
+                <h2>Üdv a demoMaker-ben!</h2>
+                <p style="font-size: 0.95rem; color: #aaa; line-height: 1.5; margin-bottom: 0;">A leggyorsabb workflow-hoz használd a billentyűparancsokat. Itt a legfontosabbak listája:</p>
+                
+                <div class="shortcut-grid">
+                    <div class="shortcut-item"><kbd>Space</kbd> Play / Pause</div>
+                    <div class="shortcut-item"><kbd>Enter</kbd> Ugrás az elejére</div>
+                    <div class="shortcut-item"><kbd>R</kbd> Felvétel (Record)</div>
+                    <div class="shortcut-item"><kbd>C</kbd> Metronóm (Click)</div>
+                    <div class="shortcut-item"><kbd>L</kbd> Loop be/ki</div>
+                    <div class="shortcut-item"><kbd>S</kbd> Kijelölő eszköz</div>
+                    <div class="shortcut-item"><kbd>Ctrl+Z</kbd> Visszavonás</div>
+                    <div class="shortcut-item"><kbd>Ctrl+D</kbd> Duplikálás</div>
+                    <div class="shortcut-item" style="grid-column: 1 / -1;"><kbd>Delete</kbd> Kijelölt klipek törlése</div>
+                </div>
+
+                <div class="welcome-footer">
+                    <label><input type="checkbox" id="hide-welcome-cb"> Ne mutasd indításkor</label>
+                    <button id="close-welcome">Let's Rock!</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', welcomeHTML);
+
+    // 3. Események és LocalStorage logika
+    const overlay = document.getElementById('welcome-overlay');
+    const modal = document.getElementById('welcome-modal');
+    const closeBtn = document.getElementById('close-welcome');
+    const hideCb = document.getElementById('hide-welcome-cb');
+
+    const openWelcomeModal = () => {
+        overlay.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+    };
+
+    const closeWelcomeModal = () => {
+        modal.classList.remove('show');
+        if (hideCb.checked) {
+            localStorage.setItem('demoMaker_hide_welcome', 'true');
+        } else {
+            localStorage.removeItem('demoMaker_hide_welcome');
+        }
+        setTimeout(() => overlay.style.display = 'none', 200);
+    };
+
+    closeBtn.addEventListener('click', closeWelcomeModal);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeWelcomeModal();
+    });
+
+    // 4. Help gomb hozzáadása a .track-actions sávhoz
+    const trackActions = document.querySelector('.track-actions');
+    if (trackActions) {
+        const helpBtn = document.createElement('button');
+        helpBtn.className = 'project-btn'; // A te meglévő stílusod!
+        helpBtn.textContent = 'Help';
+        helpBtn.onclick = () => openWelcomeModal();
+        trackActions.appendChild(helpBtn);
+    }
+
+    // 5. Indításkor ellenőrizzük, kell-e mutatni
+    const shouldHide = localStorage.getItem('demoMaker_hide_welcome') === 'true';
+    if (!shouldHide) {
+        hideCb.checked = false;
+        openWelcomeModal();
+    } else {
+        hideCb.checked = true;
+    }
+};
+
+// Várjuk meg, amíg a DOM betölt, hogy biztosan meglegyen a gombok sora
+window.addEventListener('DOMContentLoaded', initWelcomeModal);
