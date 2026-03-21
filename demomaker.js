@@ -3724,7 +3724,9 @@ document.addEventListener('visibilitychange', async () => {
 // --- WELCOME / HELP OSD (ONBOARDING) ---
 // ==========================================================
 
-const welcomeStyles = document.createElement('style');
+const initWelcomeModal = () => {
+    // 1. CSS Stílusok injektálása
+    const welcomeStyles = document.createElement('style');
     welcomeStyles.innerHTML = `
         #welcome-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -3737,7 +3739,7 @@ const welcomeStyles = document.createElement('style');
             box-shadow: 0 20px 50px rgba(0,0,0,0.9); font-family: var(--font-main);
             transform: scale(0.95); opacity: 0; transition: all 0.2s ease-out;
             
-            /* ÚJ: Mobilbarát görgetés beállítása */
+            /* Mobilbarát görgetés beállítása */
             max-height: 85vh; 
             overflow-y: auto; 
         }
