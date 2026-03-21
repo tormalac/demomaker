@@ -3545,6 +3545,25 @@ if (newProjectBtn) {
         const masterVolVal = document.querySelector('.master-vol-val');
         if (masterVolVal) masterVolVal.textContent = '80%';
 
+        // --- ÚJ: MASTER SÁV FX TAKARÍTÁSA ÚJ PROJEKTNÉL ---
+        const masterTrack = document.querySelector('.master-channel');
+        if (masterTrack && masterTrack.fxChain && masterTrack.fxChain.length > 0) {
+            masterTrack.fxChain.forEach(fx => {
+                if (fx.instance.output) fx.instance.output.disconnect();
+                if (fx.instance.lfo) { try { fx.instance.lfo.stop(); } catch(e) {} }
+            });
+            masterTrack.fxChain = [];
+            if (masterTrack.fxInputNode && masterTrack.fxOutputNode) {
+                masterTrack.fxInputNode.disconnect();
+                masterTrack.fxInputNode.connect(masterTrack.fxOutputNode);
+            }
+            const mixInserts = masterTrack.querySelector('.mix-inserts');
+            if (mixInserts) {
+                mixInserts.style.color = ''; mixInserts.style.borderColor = ''; mixInserts.style.background = '';
+            }
+        }
+        // --- MASTER TAKARÍTÁS VÉGE ---
+
         // 6. Nézet és Név (Scroll és Playhead) visszaállítása
         const projNameInput = document.getElementById('projectName');
         if (projNameInput) {
