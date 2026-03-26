@@ -784,6 +784,43 @@ class AnalogSynth {
                 this.sustain = 0.1;  // Csak halkan zeng tovább
                 this.release = 0.6;  // Természetes lecsengés (mint a pedál nélküli zongora)
                 break;
+            case 'Minimoog (Fat Lead)':
+                // A legendás Moog Model D: Vastag, átszólós lead vagy basszus (Funk / Prog Rock)
+                this.oscType = 'sawtooth';
+                this.osc2Type = 'square';
+                this.osc2Detune = 15; // Kicsit elhangolva a kövérségért
+                this.cutoff = 3500;
+                this.resonance = 4;   // Kellemesen harapós szűrő
+                this.attack = 0.01;   // Azonnal üt
+                this.decay = 0.3;
+                this.sustain = 0.5;
+                this.release = 0.2;
+                break;
+            case 'TB-303 (Acid Bass)':
+                // A savazós techno alapja a Roland TB-303. "Cuppogós", agresszív.
+                this.oscType = 'sawtooth';
+                this.osc2Type = 'sawtooth';
+                this.osc2Detune = 0; 
+                this.cutoff = 600;    // Alapból sötét...
+                this.resonance = 14;  // ...de extrém magas rezonancia, amitől "visít" a szűrő!
+                this.attack = 0.01;
+                this.decay = 0.2;     // Nagyon rövid, pattogós
+                this.sustain = 0.1;
+                this.release = 0.1;
+                this.masterLevel = 0.3;
+                break;
+            case 'CS-80 (Blade Runner)':
+                // Yamaha CS-80: Vangelis stílusú fenséges, lassan kinyíló rézfúvós pad
+                this.oscType = 'sawtooth';
+                this.osc2Type = 'sawtooth';
+                this.osc2Detune = 20; // Erősen elhangolt a széles, kórusos hangzásért
+                this.cutoff = 2000;
+                this.resonance = 1;
+                this.attack = 0.3;    // Lassan úszik be
+                this.decay = 0.5;
+                this.sustain = 0.8;   // Hosszan kitartott akkordokhoz
+                this.release = 0.9;   // Gyönyörű hosszú lecsengés
+                break;
             case 'Deep Bass':
                 // Sokkal vastagabb, telítettebb basszus, ami mobilon is átjön
                 this.oscType = 'triangle';
@@ -853,10 +890,13 @@ class AnalogSynth {
 
         const vca = this.ctx.createGain();
         
+        // --- ÚJ LOGIKA: Kiszámoljuk a csúcs-hangerőt a preset saját kompenzációjával ---
+        const peakLvl = vel * 0.5 * (this.masterLevel || 1.0); 
+        
         vca.gain.setValueAtTime(0, time);
-        vca.gain.linearRampToValueAtTime(vel * 0.5, time + this.attack); 
-        vca.gain.exponentialRampToValueAtTime((vel * 0.5) * this.sustain, time + this.attack + this.decay); 
-        vca.gain.setValueAtTime((vel * 0.5) * this.sustain, time + duration); 
+        vca.gain.linearRampToValueAtTime(peakLvl, time + this.attack); 
+        vca.gain.exponentialRampToValueAtTime(peakLvl * this.sustain, time + this.attack + this.decay); 
+        vca.gain.setValueAtTime(peakLvl * this.sustain, time + duration); 
         vca.gain.linearRampToValueAtTime(0.001, time + duration + this.release); 
 
         osc1.connect(filter);
@@ -1549,7 +1589,7 @@ class JunoChorus {
     }
     setDepth(val) { 
         // LFO mélység (max 5ms moduláció)
-        const depthSec = (val / 100) * 0.005;
+        const depthSec = (val / 100) * 0.012;
         this.lfoGainL.gain.value = depthSec;
         this.lfoGainR.gain.value = -depthSec;
     }
