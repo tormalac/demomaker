@@ -943,17 +943,39 @@ function openPianoRoll(clip) {
     // 3. Preset Selector
     const presetSelector = document.getElementById('preset-selector');
     presetSelector.style.display = 'block';
-    presetSelector.innerHTML = `
-        <option value="Classic Saw">Classic Saw</option>
-        <option value="Deep Bass">Deep Bass</option>
-        <option value="8-Bit Square">8-Bit Square</option>
-    `;
-    presetSelector.value = trackContainer.dataset.preset || 'Classic Saw';
-    if (!trackContainer.dataset.preset) trackContainer.dataset.preset = presetSelector.value;
-    presetSelector.onchange = (e) => { trackContainer.dataset.preset = e.target.value; };
     
     const isBass = trackContainer.classList.contains('bass');
     const isSynth = trackContainer.classList.contains('synth');
+    const isGuitar = trackContainer.classList.contains('guitar');
+
+    // Dinamikus legördülő menü összeállítása
+    if (isGuitar) {
+        presetSelector.innerHTML = `
+            <option value="Telecaster (Twang)">Tele Twang</option>
+            <option value="Les Paul (Warm)">LP Warm</option>
+            <option value="Classic Saw">Classic Saw Lead</option>
+        `;
+    } else if (isBass) {
+        presetSelector.innerHTML = `
+            <option value="Precision Bass (Punchy)">P Bass Punchy</option>
+            <option value="Jazz Bass (Mellow)">J Bass Mellow</option>
+            <option value="Deep Bass">Deep Synth Bass</option>
+        `;
+    } else {
+        // Alapértelmezett: Synth
+        presetSelector.innerHTML = `
+            <option value="Acoustic Piano">Acoustic Piano</option>
+            <option value="Classic Saw">Classic Saw</option>
+            <option value="8-Bit Square">8-Bit Square</option>
+            <option value="Deep Bass">Deep Bass</option>
+        `;
+    }
+
+    // Alapértelmezett érték biztonságos beállítása az induláshoz
+    presetSelector.value = trackContainer.dataset.preset || (isGuitar ? 'Telecaster (Twang)' : (isBass ? 'Precision Bass (Punchy)' : 'Acoustic Piano'));
+    if (!trackContainer.dataset.preset) trackContainer.dataset.preset = presetSelector.value;
+    
+    presetSelector.onchange = (e) => { trackContainer.dataset.preset = e.target.value; };
 
     let startOct = 4;
     let endOct = 2; // Alapból 3 oktáv
