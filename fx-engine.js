@@ -726,6 +726,64 @@ class AnalogSynth {
         this.preset = presetName;
         
         switch(presetName) {
+            case 'Telecaster (Twang)':
+                // Fényes, csattanós, vékonyabb "Single Coil" hangzás
+                this.oscType = 'sawtooth';
+                this.osc2Type = 'square';
+                this.osc2Detune = 5; // Egy icipici kórus hatás
+                this.cutoff = 4500;  // Nagyon nyitott szűrő a fényes hangért
+                this.resonance = 2;
+                this.attack = 0.01;  // Határozott, gyors pengetés
+                this.decay = 0.2;
+                this.sustain = 0.3;  // Hamarabb elhaló hang
+                this.release = 0.3;
+                break;                
+            case 'Les Paul (Warm)':
+                // Vastag, meleg, dús "Humbucker" hangzás
+                this.oscType = 'triangle'; // Lágyabb alap
+                this.osc2Type = 'sawtooth';
+                this.osc2Detune = -12; // Vastagítja a hangot
+                this.cutoff = 1200;  // Tompább, sötétebb tónus
+                this.resonance = 1;
+                this.attack = 0.03;  // Kicsit "lustább" felfutás
+                this.decay = 0.4;
+                this.sustain = 0.6;  // Hosszabb kitartás
+                this.release = 0.5;
+                break;
+            case 'Precision Bass (Punchy)':
+                // Erőteljes, átszóló basszus (Rock / Funk vibe)
+                this.oscType = 'triangle'; // Vastag alap
+                this.osc2Type = 'square';  // Kicsit karcosabb felhangok a "pengetéshez"
+                this.osc2Detune = 0;
+                this.cutoff = 1800;  // Közepesen nyitott
+                this.resonance = 2;
+                this.attack = 0.01;  // Határozott indítás
+                this.decay = 0.3;
+                this.sustain = 0.4;
+                this.release = 0.2;
+                break;
+            case 'Jazz Bass (Mellow)':
+                this.oscType = 'triangle';
+                this.osc2Type = 'sine'; // Nagyon tiszta, kerek sub
+                this.osc2Detune = 2;    // Pici lebegés a "fretless" hatásért
+                this.cutoff = 800;   // Jóval sötétebb tónus
+                this.resonance = 0;
+                this.attack = 0.03;  // Ujjas pengetés, picit puhább
+                this.decay = 0.4;
+                this.sustain = 0.6;
+                this.release = 0.4;
+                break;
+            case 'Acoustic Piano':
+                this.oscType = 'triangle';
+                this.osc2Type = 'sawtooth';
+                this.osc2Detune = 3; // Gazdagítja a felhangokat
+                this.cutoff = 3500;  // Elég nyitott a kalapácsütéshez
+                this.resonance = 1;
+                this.attack = 0.01;  // Azonnali, ütős (kalapács)
+                this.decay = 0.4;    // Gyorsan halkul a kezdeti ütés után
+                this.sustain = 0.1;  // Csak halkan zeng tovább
+                this.release = 0.6;  // Természetes lecsengés (mint a pedál nélküli zongora)
+                break;
             case 'Deep Bass':
                 // Sokkal vastagabb, telítettebb basszus, ami mobilon is átjön
                 this.oscType = 'triangle';
@@ -1464,7 +1522,6 @@ class JunoChorus {
         
         // Invertáljuk az LFO fázisát a jobb oldalon a sztereó hatásért
         this.lfo.connect(this.lfoGainR);
-        this.lfoGainR.gain.value = -1;
         this.lfoGainR.connect(this.delayR.delayTime);
         
         // Panner a jobb-bal szétválasztáshoz
@@ -1494,6 +1551,7 @@ class JunoChorus {
         // LFO mélység (max 5ms moduláció)
         const depthSec = (val / 100) * 0.005;
         this.lfoGainL.gain.value = depthSec;
+        this.lfoGainR.gain.value = -depthSec;
     }
     setMix(val) { 
         this.wetGain.gain.value = val / 100; 
