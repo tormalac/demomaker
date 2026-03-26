@@ -965,9 +965,11 @@ function openPianoRoll(clip) {
         // Alapértelmezett: Synth
         presetSelector.innerHTML = `
             <option value="Acoustic Piano">Acoustic Piano</option>
+            <option value="Minimoog (Fat Lead)">Mooog Mini D (Lead)</option>
+            <option value="CS-80 (Blade Runner)">Yam CS80 (Pad)</option>
+            <option value="TB-303 (Acid Bass)">Rol TB303 (Acid)</option>
             <option value="Classic Saw">Classic Saw</option>
             <option value="8-Bit Square">8-Bit Square</option>
-            <option value="Deep Bass">Deep Bass</option>
         `;
     }
 
