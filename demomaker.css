@@ -22,6 +22,27 @@ html, body {
 body {
     text-rendering: geometricPrecision;
     -webkit-font-smoothing: antialiased;
+
+    background: radial-gradient(circle at 50% 100%, rgba(0, 255, 213, 0.08) 0%, var(--bg-main) 60%);
+    background-color: var(--bg-main);
+    background-attachment: fixed;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh;
+
+    background-image: linear-gradient(transparent 50%, rgba(0, 0, 0, 0.15) 50%);
+    background-size: 100% 4px;
+    
+    pointer-events: none; 
+    
+    z-index: 9999; /* Legyen minden felett */
+    opacity: 0.7;
 }
 
 button {
@@ -42,6 +63,14 @@ button svg {
     min-width: 800px;
     max-width: 1800px;
     margin: 0 auto;
+    background: #0e0e0e;
+
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .logo {
@@ -65,6 +94,8 @@ button svg {
 main {
     margin: 0;
     background: #0e0e0e;
+
+    flex: 1;
 }
 
 main p {
@@ -73,10 +104,12 @@ main p {
 }
 
 footer {
-    margin-top: auto;
+    background: #0e0e0e;
     text-align: center;
     padding: 0.6rem;
     opacity: 0.8;
+    font-size: 0.8rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 h1, h2, h3 {
@@ -367,6 +400,16 @@ h1, h2, h3 {
     background: rgba(0,255,213,0.04);
 }
 
+.control-panel .play-time-btn {
+    cursor: default;
+}
+
+.control-panel .play-time-btn:hover {
+    background: transparent;
+    color: rgba(230,230,230,0.75);
+    border-color: transparent;
+}
+
 .control-panel button svg {
   color: #aaa;
 }
@@ -655,6 +698,8 @@ h1, h2, h3 {
     display: flex;
     flex-direction: column;
     gap: 0;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /*track konténer*/
@@ -1336,8 +1381,6 @@ h1, h2, h3 {
 
 .mixer-panel {
     height: 250px;
-    background: #111;
-    border-top: 1px solid rgba(255,255,255,0.08);
     display: flex;
     padding: 10px 0 10px 10px; /* Jobb oldali padding 0, hogy a Master a szélén legyen */
     flex-shrink: 0;
@@ -1360,8 +1403,7 @@ h1, h2, h3 {
     gap: 10px;  
     border-left: 2px solid #222; 
     padding: 0 15px; 
-    background: #111; 
-    flex-shrink: 0; /* Megakadályozza, hogy összenyomódjon a Master, ha sok sáv van */
+    flex-shrink: 0;
 }
 
 /* --- MASTER VU METER ÉS CLIP LED --- */
