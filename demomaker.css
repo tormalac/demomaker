@@ -11,7 +11,7 @@
 html, body {
     margin: 0;
     padding: 0;
-    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     background: var(--bg-main);
@@ -67,7 +67,7 @@ button svg {
 
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    flex: 1;
 
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -95,7 +95,8 @@ main {
     margin: 0;
     background: #0e0e0e;
 
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 200px;
 }
 
 main p {
@@ -1375,6 +1376,32 @@ h1, h2, h3 {
     min-width: 35px;
     text-align: right;
     color: #888;
+}
+
+/* --- MIXER HEADER DIZÁJN --- */
+.mixer-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 15px 20px 5px 20px;
+    background: #0e0e0e; 
+}
+
+.mixer-section-header span {
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0 15px;
+    opacity: 0.8;
+    text-shadow: 0 0 8px rgba(0, 255, 213, 0.4);
+}
+
+.mixer-section-header .mixer-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(0,255,213,0) 0%, rgba(0,255,213,0.2) 50%, rgba(0,255,213,0) 100%);
 }
 
 /* mixer panel */
