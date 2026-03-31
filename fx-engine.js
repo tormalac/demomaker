@@ -1,3 +1,11 @@
+// --- Globálisok ---
+
+let activeKnob = null;
+let activePlugin = null;
+let activeType = null;
+let startY = 0;
+let startVal = 0;
+
 // ==========================================================
 // --- FX ENGINE: NEVE 1073 & LA-2A EMULÁCIÓ ---
 // ==========================================================
@@ -2395,7 +2403,7 @@ function createQTronUI(pluginInstance) {
 }
 
 // --- KÖZÖS POTMÉTER LOGIKA ---
-function setupKnobs(wrapper, pluginInstance, type) {
+/*function setupKnobs(wrapper, pluginInstance, type) {
     const knobs = wrapper.querySelectorAll('.knob');
     let activeKnob = null; let startY = 0; let startVal = 0;
 
@@ -2495,6 +2503,27 @@ function setupKnobs(wrapper, pluginInstance, type) {
     document.addEventListener('mouseup', endDrag);
     document.addEventListener('touchend', endDrag);
     document.addEventListener('touchcancel', endDrag);
+}*/
+
+// --- KÖZÖS POTMÉTER LOGIKA ---
+function setupKnobs(wrapper, pluginInstance, type) {
+    const knobs = wrapper.querySelectorAll('.knob');
+    knobs.forEach(knob => {
+        updateKnobVisuals(knob, parseFloat(knob.dataset.val), type);
+        
+        const startDrag = (e) => {
+            if(e.cancelable) e.preventDefault();
+            activeKnob = knob;
+            activePlugin = pluginInstance;
+            activeType = type;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            startVal = parseFloat(knob.dataset.val);
+            document.body.style.cursor = 'ns-resize';
+        };
+
+        knob.addEventListener('mousedown', startDrag);
+        knob.addEventListener('touchstart', startDrag, {passive: false});
+    });
 }
 
 function updateKnobVisuals(knob, val, type) {
@@ -2937,3 +2966,59 @@ window.restoreFxChain = function(track, savedFxChain) {
         insertBtn.style.background = 'rgba(0, 255, 213, 0.05)';
     }
 };
+
+// ==========================================================
+// --- GLOBÁLIS ESEMÉNYKEZELŐ (EGER ÉS ÉRINTÉS) ---
+// ==========================================================
+
+// Ez a függvény intézi a számolást, mindegy, hogy egér vagy ujj húzza
+const handleDragMove = (e) => {
+    if (!activeKnob) return;
+    e.preventDefault(); // KÖTELEZŐ: Ez akadályozza meg, hogy mobilon görgessen az oldal!
+    
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const min = parseFloat(activeKnob.dataset.min);
+    const max = parseFloat(activeKnob.dataset.max);
+    const param = activeKnob.dataset.param;
+    const isStep = activeKnob.dataset.step === 'true';
+    
+    let deltaY = startY - clientY;
+    let newVal = startVal + (deltaY * ((max - min) / 150)); 
+    
+    if (newVal < min) newVal = min; 
+    if (newVal > max) newVal = max;
+    
+    if (isStep) {
+        const steps = activeKnob.dataset.steps.split(',').map(Number);
+        newVal = steps.reduce((prev, curr) => Math.abs(curr - newVal) < Math.abs(prev - newVal) ? curr : prev);
+    }
+
+    activeKnob.dataset.val = newVal;
+    updateKnobVisuals(activeKnob, newVal, activeType);
+
+    // DSP hívás dinamikusan a metódusnév alapján
+    const methodName = 'set' + param.charAt(0).toUpperCase() + param.slice(1);
+    if (activePlugin && typeof activePlugin[methodName] === 'function') {
+        activePlugin[methodName](newVal);
+    }
+};
+
+// Ez felel a "leengedésért"
+const handleDragEnd = () => { 
+    activeKnob = null; 
+    activePlugin = null;
+    document.body.style.cursor = ''; 
+};
+
+// --- ESEMÉNYFIGYELŐK BEKÖTÉSE (CSAK EGYSZER!) ---
+
+// 1. Egér mozgás
+document.addEventListener('mousemove', handleDragMove);
+
+// 2. Érintés mozgás (passive: false KÖTELEZŐ, hogy működjön a preventDefault)
+document.addEventListener('touchmove', handleDragMove, { passive: false });
+
+// 3. Elengedés (Egér és Érintés)
+document.addEventListener('mouseup', handleDragEnd);
+document.addEventListener('touchend', handleDragEnd);
+document.addEventListener('touchcancel', handleDragEnd);
