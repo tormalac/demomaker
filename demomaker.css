@@ -22,13 +22,10 @@ html, body {
 body {
     text-rendering: geometricPrecision;
     -webkit-font-smoothing: antialiased;
-
-    background: radial-gradient(circle at 50% 100%, rgba(0, 255, 213, 0.08) 0%, var(--bg-main) 60%);
     background-color: var(--bg-main);
-    background-attachment: fixed;
 }
 
-body::after {
+/*body::after {
     content: "";
     position: fixed;
     top: 0; 
@@ -43,7 +40,7 @@ body::after {
     
     z-index: 9999; /* Legyen minden felett */
     opacity: 0.7;
-}
+}*/
 
 button {
   -webkit-tap-highlight-color: transparent; /* iOS / Safari */
@@ -151,6 +148,7 @@ h1, h2, h3 {
     justify-content: space-between;
     align-items: center;
     padding: 0 20px;
+    z-index: 450;
 }
 
 #authBox {
@@ -184,6 +182,7 @@ h1, h2, h3 {
     right: 20px;
     width: 190px;
     border: 1px solid var(--accent-soft);
+    border-radius: 2px;
     color: var(--text-main);
     font-family: var(--font-mono);
     padding: 10px;
@@ -256,9 +255,43 @@ h1, h2, h3 {
 
 .track-picker {
     position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    z-index: 900; 
+    display: none;
+    border: 1px solid var(--accent-soft);
+    background: rgba(11, 11, 11, 0.95);
+    backdrop-filter: blur(8px);
+    padding: 4px;
+    min-width: 140px;
+    border-radius: 4px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.track-picker button {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 8px 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+}
+
+/*.track-picker {
+    position: absolute;
     top: 110%;
     left: 0;
-    z-index: 800;
+    z-index: 900;
     display: none;
     border: 1px solid var(--accent-soft);
     background: rgba(0,0,0,0.9);
@@ -267,12 +300,6 @@ h1, h2, h3 {
     opacity: 0;
     transform: translateY(-4px);
     transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.track-picker.show {
-    display: block;
-    opacity: 1;
-    transform: translateY(0);
 }
 
 .track-picker button {
@@ -288,16 +315,18 @@ h1, h2, h3 {
     cursor: pointer;
     text-align: left;
 }
+*/
+
+.track-picker.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
 
 .track-picker button:hover {
     color: var(--accent);
     background: rgba(0,255,213,0.05);
 }
-
-/*.add-track span {
-    font-size: 1.4rem;
-    line-height: 1;
-}*/
 
 .add-track:hover {
     color: var(--accent);
@@ -310,8 +339,9 @@ h1, h2, h3 {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 20px;
+    padding: 8px 20px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 600;
 }
 
 .project-btn {
@@ -370,7 +400,7 @@ h1, h2, h3 {
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 8px 20px;
+    padding: 4px 20px;
     height: 34px;
     flex-wrap: nowrap;   
     white-space: nowrap;
@@ -610,7 +640,7 @@ h1, h2, h3 {
 .timeline-ruler {
   display: none;     
   position: sticky;
-  top: 50px;         
+  top: 43px;         
   margin-left: 164px;     
   width: calc(100% - 164px);         
   box-sizing: border-box; 
@@ -691,6 +721,35 @@ h1, h2, h3 {
 }
 .loop-handle.left::before { left: 5px; }
 .loop-handle.right::before { right: 5px; }
+
+/* szekvenszer pianoroll*/
+#seq-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    z-index: 400;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+    padding-bottom: 20px;
+}
+
+#seq-modal {
+    background: #111;
+    border: 2px solid #3fa9f5;
+    border-radius: 6px;
+    width: 95%;
+    max-width: 1200px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -10px 50px rgba(0,0,0,0.8);
+    max-height: 60vh;
+}
 
 /* track lista */
 .track-list {
@@ -983,7 +1042,7 @@ h1, h2, h3 {
     display: none;
     flex-direction: column;
     gap: 8px;
-    z-index: 1000;
+    z-index: 800;
     width: 130px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.8);
     backdrop-filter: blur(4px);
@@ -1087,7 +1146,7 @@ h1, h2, h3 {
 
 .audio-source-picker {
   position: absolute;
-  top: 214px;
+  top: 213px;
   left: 0px;
   background: rgba(0,0,0,0.95);
   border: 1px solid var(--accent-soft);
@@ -1116,7 +1175,7 @@ h1, h2, h3 {
 
 .output-picker {
   position: absolute;
-  top: 252px;
+  top: 251px;
   left: 0px;
   background: rgba(0,0,0,0.95);
   border: 1px solid var(--accent-soft);
