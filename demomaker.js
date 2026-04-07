@@ -50,6 +50,8 @@ let trackCounter = 0;
 let audioEnabled = false;
 let availableInputs = [];
 let availableOutputs = [];
+let isPatternMode = false;
+let currentEditingClip = null;
 
 // ==========================================================
 // --- GLOBAL SIDECHAIN ENGINE (LA-2A STYLE) ---
@@ -560,7 +562,10 @@ function pixelsToTicks(pixels) {
 
 
 // --- TRACK LÉTREHOZÁS ---
-addBtn.addEventListener('click', () => picker.classList.toggle('show'));
+addBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Ez akadályozza meg, hogy azonnal bezáródjon!
+    picker.classList.toggle('show');
+});
 
 function createTrack(type) {
     trackCounter++;
@@ -817,6 +822,19 @@ const instruments = [
 
 // --- DRUM EDITOR (PATTERN KLIP SZERKESZTŐ) ---
 function openDrumEditor(clip) {
+    isPatternMode = true;
+    currentEditingClip = clip;
+
+    const clipStart = parseFloat(clip.dataset.start);
+    currentPlayTime = clipStart;
+    startOffset = clipStart;
+    updatePlayheadVisuals(); 
+    
+    // Opcionális: oda is görgetjük a képernyőt, hogy középen legyen
+    if (typeof setScroll === 'function') {
+        setScroll(Math.max(0, (clipStart * PX_PER_SECOND) - 100));
+    }
+
     const seqOverlay = document.getElementById('seq-modal-overlay');
     const seqModal = document.getElementById('seq-modal');
     const seqGrid = document.getElementById('seq-grid');
@@ -925,6 +943,18 @@ function openDrumEditor(clip) {
 
 // --- PIANO ROLL EDITOR (CUBASE / FL STUDIO STYLE) ---
 function openPianoRoll(clip) {
+    isPatternMode = true;
+    currentEditingClip = clip;
+    const clipStart = parseFloat(clip.dataset.start);
+    currentPlayTime = clipStart;
+    startOffset = clipStart;
+    updatePlayheadVisuals(); 
+    
+    // Opcionális: oda is görgetjük a képernyőt, hogy középen legyen
+    if (typeof setScroll === 'function') {
+        setScroll(Math.max(0, (clipStart * PX_PER_SECOND) - 100));
+    }
+
     const seqOverlay = document.getElementById('seq-modal-overlay');
     const seqModal = document.getElementById('seq-modal'); 
     const seqGrid = document.getElementById('seq-grid');
@@ -1124,7 +1154,10 @@ function openPianoRoll(clip) {
 
 // Bezárás gomb
 document.getElementById('close-seq-btn').addEventListener('click', () => {
+    isPatternMode = false;
+    currentEditingClip = null;
     seqOverlay.style.display = 'none';
+    if (isPlaying) stopPlayback(); // Opcionális: leállítja a zenét kilépéskor
 });
 
 // --- GOMBOK ÉS KATTINTÁSOK KEZELÉSE (Sávok és Keverő is) ---
@@ -1209,12 +1242,11 @@ document.addEventListener('click', e => {
     // 5. EDIT GOMB (Editor megnyitása BÁRMELYIK sávon)
     const editBtn = e.target.closest('.daw-btn.edit');
     if (editBtn) {
+        // 1. Keressük meg a GLOBÁLISAN kijelölt klipet (függetlenül attól, melyik 'e' gombra nyomtál)
+        let selectedClip = document.querySelector('.audio-clip.selected-clip');
         const trackContainer = editBtn.closest('.track-container');
-        const isDrum = trackContainer.classList.contains('drum');
-        let selectedClip = trackContainer.querySelector('.audio-clip.selected-clip');
-        
-        // --- ÚJ OKOS LOGIKA ---
-        // Ha nincs explicit kijelölve klip, CSAK azt nézzük meg, mi van a piros lejátszófej (Playhead) alatt:
+
+        // 2. Ha nincs explicit kijelölve semmi, nézzük meg a sávot és a Playheadet
         if (!selectedClip) {
             const allClips = Array.from(trackContainer.querySelectorAll('.audio-clip'));
             selectedClip = allClips.find(c => {
@@ -1223,21 +1255,25 @@ document.addEventListener('click', e => {
                 return currentPlayTime >= start && currentPlayTime <= end; 
             });
             
-            // Ha sikeresen kitaláltuk, vizuálisan is kijelöljük neki
             if (selectedClip) {
                 document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
                 selectedClip.classList.add('selected-clip');
             }
         }
-        // --- ÚJ LOGIKA VÉGE ---
 
         if (selectedClip) {
+            // FONTOS: Ha megy a zene, állítsuk le, hogy az óra nullázódjon az editorban!
+            if (isPlaying) stopPlayback(); 
+            
+            const isDrum = selectedClip.closest('.track-container').classList.contains('drum');
             if (selectedClip.dataset.type === 'pattern') {
                 if (isDrum) openDrumEditor(selectedClip); 
                 else openPianoRoll(selectedClip);         
             }
         } else {
             // NINCS KIJELÖLVE SEMMI ÉS A PLAYHEAD ALATT SINCS KLIP: Hozunk létre egy új Pattern Klipet!
+            if (isPlaying) stopPlayback();
+            
             let startTime = currentPlayTime;
             const snapPx = getSnapPx();
             if (snapPx > 0) {
@@ -1304,8 +1340,27 @@ document.addEventListener('click', e => {
 
 // Pickerek bezárása kattintásra
 document.addEventListener('click', (e) => {
-    if(!e.target.closest('.audio-source') && !e.target.closest('.output')){
+    // 1. Audio I/O és Sidechain ablakok bezárása
+    if(!e.target.closest('.audio-source') && !e.target.closest('.output') && !e.target.closest('.sidechain-popup') && !e.target.closest('.sidechain-btn')){
         closeAllPickers();
+        document.querySelectorAll('.sidechain-popup').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.daw-btn.sidechain-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    // 2. Add Track dropdown bezárása (ha mellékattintasz)
+    const trackPicker = document.getElementById('trackPicker');
+    if (trackPicker && trackPicker.classList.contains('show')) {
+        if (!trackPicker.contains(e.target)) {
+            trackPicker.classList.remove('show');
+        }
+    }
+
+    // 3. Open dropdown bezárása (ha mellékattintasz)
+    const openPicker = document.getElementById('openPicker');
+    if (openPicker && openPicker.classList.contains('show')) {
+        if (!openPicker.contains(e.target)) {
+            openPicker.classList.remove('show');
+        }
     }
 });
 
@@ -3007,18 +3062,47 @@ function handleLoopReset() {
 }
 
 function scheduler() {
-    // --- ÚJ: LOOP ELLENŐRZÉS A HÁTTÉRBEN IS ---
     if (isPlaying) {
         const elapsed = audioCtx.currentTime - startPlayTime;
         const exactPlayTime = startOffset + elapsed;
         
-        const loopBtn = document.querySelector('.loop-btn');
-        if (loopBtn && loopBtn.classList.contains('active') && exactPlayTime >= loopEndSec) {
-            handleLoopReset();
-            return; // Fontos! Kilépünk, hogy a reset indítsa újra a rendszert, ne mi!
+        // --- PATTERN BELSŐ LOOP ---
+        if (isPatternMode && currentEditingClip) {
+            const clipStart = parseFloat(currentEditingClip.dataset.start);
+            const patternDuration = parseFloat(currentEditingClip.dataset.duration);
+            const relativePlayTime = exactPlayTime - clipStart;
+
+            if (relativePlayTime >= patternDuration) {
+                // Loop Reset a Patternen belül
+                audioSources.forEach(src => { try { src.stop(); } catch(e) {} });
+                audioSources = [];
+                clearTimeout(timerID);
+                
+                // VISSZA A KLIP ELEJÉRE (Nem 0-ra!)
+                currentPlayTime = clipStart;
+                startOffset = clipStart;
+                startPlayTime = audioCtx.currentTime;
+                
+                currentQuarterNote = 0;
+                nextNoteTime = audioCtx.currentTime;
+                
+                scheduler(); 
+                scheduleClips(clipStart); // Ide is a klip kezdete kell!
+                return;
+            }
+        }
+
+        // --- GLOBÁLIS TIMELINE LOOP ---
+        else {
+            const loopBtn = document.querySelector('.loop-btn');
+            if (loopBtn && loopBtn.classList.contains('active') && exactPlayTime >= loopEndSec) {
+                handleLoopReset();
+                return; 
+            }
         }
     }
 
+    // ... (A metronóm kattogó része marad változatlan) ...
     while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
         playClickSound(nextNoteTime, currentQuarterNote);
         const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
@@ -3031,9 +3115,44 @@ function scheduler() {
 
 // Ezt a függvényt mostantól többször is meg tudjuk hívni (induláskor és loopoláskor is)
 function scheduleClips(offsetTime) {
+// --- 1. PATTERN MÓD (CSAK A NYITOTT KLIP SZÓL!) ---
+    if (isPatternMode && currentEditingClip) {
+        const clipDiv = currentEditingClip;
+        const parentTrack = clipDiv.closest('.track-container');
+        const trackOutput = (parentTrack && parentTrack.trackPannerNode) ? parentTrack.trackPannerNode : masterGain;
+        const savedPreset = parentTrack.dataset.preset || null;
+        
+        const clipStart = parseFloat(clipDiv.dataset.start);
+        const clipDuration = parseFloat(clipDiv.dataset.duration);
+        
+        // EZ A TITOK: Kiszámoljuk a klipen belüli "relatív" időt!
+        const relativeOffset = offsetTime - clipStart; 
+
+        if (clipDiv.patternData && clipDiv.patternData.notes) {
+            clipDiv.patternData.notes.forEach(note => {
+                // A note.start a patternen belül mindig 0-tól indul, ezt hasonlítjuk a relatív időhöz
+                if (note.start >= relativeOffset && note.start < clipDuration) {
+                    const whenToStart = note.start - relativeOffset;
+                    
+                    if (!parentTrack.classList.contains('drum')) {
+                        if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
+                        const nodes = window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput, savedPreset);
+                        if (nodes) audioSources.push(...nodes);
+                    } else {
+                        if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
+                        const nodes = window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput, savedPreset);
+                        if (nodes) audioSources.push(...nodes);
+                    }
+                }
+            });
+        }
+        return; // <--- EZ NAGYON FONTOS!
+    }
+
+    // --- 2. SONG MÓD (EREDETI TIMELINE LEJÁTSZÁS) ---
     const allClips = document.querySelectorAll('.audio-clip');
-    
     allClips.forEach(clipDiv => {
+        // ... (Ide jön a jelenlegi scheduleClips kódod maradéka változatlanul) ...
         const clipStartTimeline = parseFloat(clipDiv.dataset.start); 
         const clipDuration = parseFloat(clipDiv.dataset.duration);
         const trimOffset = parseFloat(clipDiv.dataset.trimOffset || 0); 
@@ -3041,18 +3160,14 @@ function scheduleClips(offsetTime) {
 
         if (offsetTime < clipEndTimeline) {
             const parentTrack = clipDiv.closest('.track-container');
-            // Célkimenet: A sáv pannerje, vagy a Master
             const trackOutput = (parentTrack && parentTrack.trackPannerNode) ? parentTrack.trackPannerNode : masterGain;
 
-            // --- 1. AUDIO KLIP LEJÁTSZÁSA ---
             if (clipDiv.dataset.type !== 'pattern') {
                 const buffer = clipDiv.audioBuffer;
                 if (!buffer) return;
-                
                 const source = audioCtx.createBufferSource();
                 source.buffer = buffer;
                 source.connect(trackOutput);
-                
                 let whenToStart = 0; 
                 let offsetInFile = 0; 
 
@@ -3065,40 +3180,24 @@ function scheduleClips(offsetTime) {
                 }
 
                 let playDuration = clipDuration;
-                if (offsetTime > clipStartTimeline) {
-                    playDuration = clipEndTimeline - offsetTime;
-                }
+                if (offsetTime > clipStartTimeline) playDuration = clipEndTimeline - offsetTime;
 
                 source.start(audioCtx.currentTime + whenToStart, offsetInFile, playDuration);
                 audioSources.push(source);
-            } 
-           // --- 2. PATTERN (MIDI) KLIP LEJÁTSZÁSA ---
-            else {
+            } else {
                 if (clipDiv.patternData && clipDiv.patternData.notes) {
-                    // Lekérjük a sávhoz mentett presetet!
                     const savedPreset = parentTrack.dataset.preset || null;
-
                     clipDiv.patternData.notes.forEach(note => {
                         const noteAbsoluteTime = clipStartTimeline + note.start - trimOffset;
-                        
                         if (noteAbsoluteTime >= offsetTime && noteAbsoluteTime < clipEndTimeline) {
                             const whenToStart = noteAbsoluteTime - offsetTime;
-                            
-                            // HA A SÁV NEM DOB, AKKOR MINDENKÉPPEN A SZINTIT HASZNÁLJA
                             if (!parentTrack.classList.contains('drum')) {
-                                // SZINTETIZÁTOR LEJÁTSZÁSA
                                 if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
-                                
                                 const nodes = window.analogSynth.playNote(note.note, audioCtx.currentTime + whenToStart, note.duration || 0.25, note.velocity, trackOutput, savedPreset);
-                                
                                 if (nodes) audioSources.push(...nodes);
-                                
                             } else {
-                                // DOBGÉP LEJÁTSZÁSA
                                 if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
-                                
                                 const nodes = window.analogDrums.playNote(note.note, audioCtx.currentTime + whenToStart, note.velocity, trackOutput, savedPreset);
-                                
                                 if (nodes) audioSources.push(...nodes);
                             }
                         }
@@ -3113,6 +3212,18 @@ function startPlayback() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     isPlaying = true;
     startPlayTime = audioCtx.currentTime;
+
+    // --- ÚJ: HA EDITORBAN VAGYUNK, A KLIP ELEJÉRŐL INDUL! ---
+    if (isPatternMode && currentEditingClip) {
+        const clipStart = parseFloat(currentEditingClip.dataset.start);
+        const clipEnd = clipStart + parseFloat(currentEditingClip.dataset.duration);
+        
+        // Ha a piros vonal épp nem a klip felett van, ugorjon a klip elejére
+        if (currentPlayTime < clipStart || currentPlayTime > clipEnd) {
+            currentPlayTime = clipStart;
+        }
+    }
+
     startOffset = currentPlayTime; 
 
     const secondsPerClick = (60.0 / bpm) * (4 / timeSig[1]);
@@ -3741,6 +3852,42 @@ document.addEventListener('visibilitychange', async () => {
         } catch (e) {
             console.error("Force save failed:", e);
         }
+    }
+});
+
+// --- GOLYÓÁLLÓ DUPLA KOPPINTÁS / KATTINTÁS (PC & MOBIL) ---
+let lastTapTime = 0;
+
+document.addEventListener('click', (e) => {
+    const clip = e.target.closest('.audio-clip');
+    
+    // Csak a MIDI/Pattern klipeken figyeljük
+    if (clip && clip.dataset.type === 'pattern') {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTapTime;
+        
+        // Ha 300 milliszekundumon belül jött a második kattintás/koppintás: DUPLA KATT!
+        if (tapLength < 300 && tapLength > 0) {
+            e.preventDefault();
+            
+            // 1. Zene leállítása az Editor tiszta indításához
+            if (isPlaying) stopPlayback(); 
+
+            // 2. Sáv típusának lekérése
+            const trackContainer = clip.closest('.track-container');
+            const isDrum = trackContainer.classList.contains('drum');
+
+            // 3. Vizuális kijelölés (hogy a Play gomb is tudja, mit kell játszani)
+            document.querySelectorAll('.audio-clip').forEach(c => c.classList.remove('selected-clip'));
+            clip.classList.add('selected-clip');
+
+            // 4. Editor megnyitása
+            if (isDrum) openDrumEditor(clip);
+            else openPianoRoll(clip);
+        }
+        
+        // Elmentjük az aktuális kattintás idejét a következőhöz
+        lastTapTime = currentTime;
     }
 });
 
