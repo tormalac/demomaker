@@ -1,3 +1,42 @@
+// ==========================================================
+// --- GLOBÁLIS DAW ÁLLAPOT (STATE) ---
+// ==========================================================
+window.DAW = {
+    // Lejátszás
+    isPlaying: false,
+    currentPlayTime: 0,
+    startOffset: 0,
+    bpm: 120,
+    timeSig: [4, 4],
+    
+    // Editor Mód
+    isPatternMode: false,
+    currentEditingClip: null,
+    
+    // UI Állapotok
+    zoom: 1.0,
+    currentGrid: "1/8",
+    trackCounter: 0,
+    
+    // Audio Core
+    ctx: new (window.AudioContext || window.webkitAudioContext)(),
+    masterGain: null,
+    masterPanner: null,
+    masterAnalyser: null,
+    audioSources: []
+};
+
+// Inicializáljuk az Audio Core elemeket a State-en belül
+DAW.masterGain = DAW.ctx.createGain();
+DAW.masterPanner = DAW.ctx.createStereoPanner();
+DAW.masterAnalyser = DAW.ctx.createAnalyser();
+DAW.masterAnalyser.fftSize = 256;
+
+DAW.masterGain.connect(DAW.masterPanner);
+DAW.masterPanner.connect(DAW.masterAnalyser);
+DAW.masterAnalyser.connect(DAW.ctx.destination);
+DAW.masterGain.gain.value = 0.8;
+
 // --- DOM Elemek ---
 const authBox = document.getElementById("authBox");
 const addBtn = document.getElementById('addTrackBtn');
@@ -822,6 +861,8 @@ const instruments = [
 
 // --- DRUM EDITOR (PATTERN KLIP SZERKESZTŐ) ---
 function openDrumEditor(clip) {
+    document.body.classList.add('editor-active-ui');
+
     isPatternMode = true;
     currentEditingClip = clip;
 
@@ -943,6 +984,8 @@ function openDrumEditor(clip) {
 
 // --- PIANO ROLL EDITOR (CUBASE / FL STUDIO STYLE) ---
 function openPianoRoll(clip) {
+    document.body.classList.add('editor-active-ui');
+
     isPatternMode = true;
     currentEditingClip = clip;
     const clipStart = parseFloat(clip.dataset.start);
@@ -1156,8 +1199,10 @@ function openPianoRoll(clip) {
 document.getElementById('close-seq-btn').addEventListener('click', () => {
     isPatternMode = false;
     currentEditingClip = null;
+    
+    document.body.classList.remove('editor-active-ui');
     seqOverlay.style.display = 'none';
-    if (isPlaying) stopPlayback(); // Opcionális: leállítja a zenét kilépéskor
+    if (isPlaying) stopPlayback();
 });
 
 // --- GOMBOK ÉS KATTINTÁSOK KEZELÉSE (Sávok és Keverő is) ---
