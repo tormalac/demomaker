@@ -2,40 +2,199 @@
 // --- GLOBÁLIS DAW ÁLLAPOT (STATE) ---
 // ==========================================================
 window.DAW = {
-    // Lejátszás
-    isPlaying: false,
-    currentPlayTime: 0,
-    startOffset: 0,
-    bpm: 120,
-    timeSig: [4, 4],
-    
-    // Editor Mód
-    isPatternMode: false,
-    currentEditingClip: null,
-    
-    // UI Állapotok
-    zoom: 1.0,
-    currentGrid: "1/8",
-    trackCounter: 0,
-    
-    // Audio Core
-    ctx: new (window.AudioContext || window.webkitAudioContext)(),
-    masterGain: null,
-    masterPanner: null,
-    masterAnalyser: null,
-    audioSources: []
+    transport: {
+        isPlaying: false,
+        currentPlayTime: 0,
+        startOffset: 0,
+        bpm: 120,
+        timeSig: [4, 4],
+        isLooping: false,
+        loopRegion: { start: 0, end: 4 }, // <--- ITT VOLT A HIÁNYZÓ VESSZŐ!
+        isPatternMode: false,
+        currentEditingClip: null
+    },
+    ui: {
+        zoom: 1.0,
+        currentGrid: "1/8",
+        isSnapEnabled: false,
+        trackCounter: 0
+    },
+    core: {
+        ctx: new (window.AudioContext || window.webkitAudioContext)(),
+        masterGain: null,
+        masterPanner: null,
+        masterAnalyser: null,
+        audioSources: []
+    },
+    tracks: []
 };
 
-// Inicializáljuk az Audio Core elemeket a State-en belül
-DAW.masterGain = DAW.ctx.createGain();
-DAW.masterPanner = DAW.ctx.createStereoPanner();
-DAW.masterAnalyser = DAW.ctx.createAnalyser();
-DAW.masterAnalyser.fftSize = 256;
+// --- RÉGI GLOBÁLIS VÁLTOZÓK (ÁTMENETI HID) ---
+// Ezeket egyelőre meg kell hagynunk, különben a lentebbi, még át nem írt
+// hangmotor-kódok (pl. startPlayback) ReferenceError-t dobnak!
+let bpm = 120;
+let timeSig = [4, 4];
+let isPlaying = false;
+let currentPlayTime = 0;
+let startOffset = 0;
 
-DAW.masterGain.connect(DAW.masterPanner);
-DAW.masterPanner.connect(DAW.masterAnalyser);
-DAW.masterAnalyser.connect(DAW.ctx.destination);
-DAW.masterGain.gain.value = 0.8;
+
+// Inicializáljuk az Audio Core elemeket a State-en belül
+DAW.core.masterGain = DAW.core.ctx.createGain();
+DAW.core.masterPanner = DAW.core.ctx.createStereoPanner();
+DAW.core.masterAnalyser = DAW.core.ctx.createAnalyser();
+DAW.core.masterAnalyser.fftSize = 256;
+
+DAW.core.masterGain.connect(DAW.core.masterPanner);
+DAW.core.masterPanner.connect(DAW.core.masterAnalyser);
+DAW.core.masterAnalyser.connect(DAW.core.ctx.destination);
+DAW.core.masterGain.gain.value = 0.8;
+
+// ==========================================================
+// --- 2. STATE MÓDOSÍTÓK (ACTIONS) ---
+// ==========================================================
+
+function setBpm(newBpm) {
+    let val = parseInt(newBpm);
+    if (isNaN(val) || val < 20) val = 20;
+    if (val > 999) val = 999;
+    
+    // 1. Új módszer: Frissítjük a State-et
+    DAW.transport.bpm = val;
+    
+    // 2. Régi módszer: Szinkronizáljuk a régi változót a még refaktorálatlan kódnak
+    bpm = val;
+    
+    // 3. Frissítjük a UI-t
+    document.querySelector('.bpm-input').value = val;
+    
+    // 4. Szólunk a grafikus motoroknak
+    drawRuler();
+    drawAllGrids();
+}
+
+function togglePlay() {
+    // 1. Új módszer: State átbillentése
+    DAW.transport.isPlaying = !DAW.transport.isPlaying;
+    
+    // 2. Régi módszer: Szinkronizáció
+    isPlaying = DAW.transport.isPlaying;
+    
+    // 3. UI frissítése és Audio parancsok
+    const playBtn = document.querySelector('.play-btn');
+    if (isPlaying) {
+        playBtn.classList.add('active');
+        playBtn.innerHTML = ICON_PAUSE; 
+        startPlayback(); 
+    } else {
+        playBtn.classList.remove('active');
+        playBtn.innerHTML = ICON_PLAY;
+        stopPlayback(); 
+    }
+}
+
+// --- SÁV MUTÁTOROK (TRACK ACTIONS) ---
+
+function setTrackVolume(trackId, val) {
+    // 1. Beírjuk az adatot az Agyba
+    const trackData = DAW.tracks.find(t => t.id === trackId);
+    if (trackData) trackData.volume = parseInt(val);
+
+    // 2. Frissítjük a FELSŐ sáv UI-t
+    const trackEl = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
+    if (trackEl) {
+        const trkSlider = trackEl.querySelector('.trk-vol-slider');
+        if (trkSlider && trkSlider.value !== val) trkSlider.value = val;
+        const trkVal = trackEl.querySelector('.trk-vol-slider + .slider-value');
+        if (trkVal) trkVal.textContent = val + '%';
+    }
+
+    // 3. Frissítjük az ALSÓ Mixer UI-t
+    const mixEl = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
+    if (mixEl) {
+        const mixSlider = mixEl.querySelector('.mix-vol-slider');
+        if (mixSlider && mixSlider.value !== val) mixSlider.value = val;
+        const mixVal = mixEl.querySelector('.mix-val');
+        if (mixVal) mixVal.textContent = val + '%';
+    }
+
+    // 4. Frissítjük a hangmotort
+    updateSoloStates();
+}
+
+function setTrackPan(trackId, val) {
+    // 1. Beírjuk az adatot az Agyba
+    const trackData = DAW.tracks.find(t => t.id === trackId);
+    if (trackData) trackData.pan = parseInt(val);
+
+    // 2. Felső UI + Audio csomópont
+    const trackEl = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
+    if (trackEl) {
+        const trkSlider = trackEl.querySelector('.trk-pan-slider');
+        if (trkSlider && trkSlider.value !== val) trkSlider.value = val;
+        const trkVal = trackEl.querySelector('.trk-pan-slider + .slider-value');
+        if (trkVal) trkVal.textContent = val;
+        
+        if (trackEl.trackPannerNode) trackEl.trackPannerNode.pan.value = val / 50;
+    }
+
+    // 3. Alsó Mixer UI
+    const mixEl = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
+    if (mixEl) {
+        const mixSlider = mixEl.querySelector('.mix-pan-slider');
+        if (mixSlider && mixSlider.value !== val) mixSlider.value = val;
+    }
+}
+
+function toggleTrackMute(trackId) {
+    // 1. Adat frissítése
+    const trackData = DAW.tracks.find(t => t.id === trackId);
+    if (!trackData) return;
+
+    trackData.isMuted = !trackData.isMuted;
+    if (trackData.isMuted) trackData.isSolo = false; // Mute kiüti a Solo-t
+
+    // 2. UI Frissítés (Sáv és Mixer egyszerre)
+    const trackEl = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
+    const mixEl = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
+
+    if (trackEl) {
+        trackEl.querySelector('.daw-btn.mute').classList.toggle('active', trackData.isMuted);
+        trackEl.querySelector('.daw-btn.solo').classList.toggle('active', trackData.isSolo);
+    }
+    if (mixEl) {
+        mixEl.querySelector('.mix-mute').classList.toggle('active', trackData.isMuted);
+        mixEl.querySelector('.mix-solo').classList.toggle('active', trackData.isSolo);
+    }
+
+    // 3. Audio motor frissítése
+    updateSoloStates();
+}
+
+function toggleTrackSolo(trackId) {
+    // 1. Adat frissítése
+    const trackData = DAW.tracks.find(t => t.id === trackId);
+    if (!trackData) return;
+
+    trackData.isSolo = !trackData.isSolo;
+    if (trackData.isSolo) trackData.isMuted = false; // Solo kiüti a Mute-ot
+
+    // 2. UI Frissítés (Sáv és Mixer egyszerre)
+    const trackEl = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
+    const mixEl = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
+
+    if (trackEl) {
+        trackEl.querySelector('.daw-btn.solo').classList.toggle('active', trackData.isSolo);
+        trackEl.querySelector('.daw-btn.mute').classList.toggle('active', trackData.isMuted);
+    }
+    if (mixEl) {
+        mixEl.querySelector('.mix-solo').classList.toggle('active', trackData.isSolo);
+        mixEl.querySelector('.mix-mute').classList.toggle('active', trackData.isMuted);
+    }
+
+    // 3. Audio motor frissítése
+    updateSoloStates();
+}
 
 // --- DOM Elemek ---
 const authBox = document.getElementById("authBox");
@@ -566,8 +725,8 @@ function handleResizeMove(clientX) {
 // ==========================================================
 // --- DAW LOGIKA & ESEMÉNYEK ---
 // ==========================================================
-let bpm = 120;
-let timeSig = [4, 4];
+/*let bpm = 120;
+let timeSig = [4, 4];*/
 let zoom = 1;
 let PX_PER_SECOND = 100 * zoom;
 let currentGrid = "1/8";
@@ -610,7 +769,37 @@ function createTrack(type) {
     trackCounter++;
     const trackId = 'trk-' + trackCounter;
 
-    // 1. FELSŐ Track HTML létrehozása
+    // ==========================================
+    // --- 1. ÚJ: SÁV ADATMODELL LÉTREHOZÁSA ---
+    // ==========================================
+    const defaultPresets = {
+        'drum': 'TR-808 (Deep)',
+        'bass': 'Precision Bass (Punchy)',
+        'guitar': 'Telecaster (Twang)',
+        'synth': 'Classic Saw',
+        'vocal': 'Acoustic Piano', 
+        'sample': 'Acoustic Piano'
+    };
+
+    const newTrackData = {
+        id: trackId,
+        type: type,
+        name: `Track ${trackCounter}`,
+        preset: defaultPresets[type] || 'Classic Saw',
+        volume: 80,
+        pan: 0,
+        scAmount: 0,
+        isMuted: false,
+        isSolo: false,
+        clips: [],
+        fxChain: []
+    };
+    
+    DAW.tracks.push(newTrackData);
+
+    // ==========================================
+    // --- 2. RÉGI: HTML ÉS DOM GENERÁLÁS ---
+    // ==========================================
     const track = document.createElement('div');
     track.className = `track-container ${type}`;
     track.dataset.trackId = trackId;
@@ -747,7 +936,7 @@ picker.addEventListener('click', (e) => {
 });
 
 // --- SÁV ÉS MIXER SZINKRONIZÁCIÓ (INPUT ESEMÉNYEK) ---
-document.addEventListener('input', e => {
+/*document.addEventListener('input', e => {
     // 1. MASTER Vol & Pan vezérlés
     if (e.target.classList.contains('master-vol-slider')) {
         const val = e.target.value;
@@ -837,6 +1026,62 @@ document.addEventListener('input', e => {
         if (mixChan) mixChan.querySelector('.mix-header').textContent = e.target.textContent;
     }
 });
+
+*/
+
+// --- SÁV ÉS MIXER SZINKRONIZÁCIÓ (INPUT ESEMÉNYEK) ---
+document.addEventListener('input', e => {
+    
+    // 1. MASTER Vol & Pan vezérlés (Ez marad a régiben)
+    if (e.target.classList.contains('master-vol-slider')) {
+        const val = e.target.value;
+        document.querySelector('.master-vol-val').textContent = val + '%';
+        masterGain.gain.value = val / 100;
+    }
+    else if (e.target.classList.contains('master-pan-slider')) {
+        masterPanner.pan.value = e.target.value / 50;
+    }
+    
+    // 2. ÚJ: TRACK ÉS MIXER HANGERŐ / PAN (Bárhol is húzod meg!)
+    else if (e.target.classList.contains('trk-vol-slider') || e.target.classList.contains('mix-vol-slider')) {
+        const trackId = e.target.closest('[data-track-id]').dataset.trackId;
+        setTrackVolume(trackId, e.target.value);
+    }
+    else if (e.target.classList.contains('trk-pan-slider') || e.target.classList.contains('mix-pan-slider')) {
+        const trackId = e.target.closest('[data-track-id]').dataset.trackId;
+        setTrackPan(trackId, e.target.value);
+    }
+    
+    // 3. SIDECHAIN (Ez egyelőre marad itt)
+    else if (e.target.classList.contains('trk-sc-slider')) {
+        const val = e.target.value;
+        const trackContainer = e.target.closest('.track-container');
+        e.target.nextElementSibling.textContent = val + '%';
+        
+        // PUMP gomb logikája
+        const pumpBtn = trackContainer.querySelector('.pump-btn');
+        if (pumpBtn) {
+            if (val > 0) pumpBtn.classList.add('engaged');
+            else pumpBtn.classList.remove('engaged');
+        }
+
+        // ÚJ: Ezt is elmentjük az Agyba!
+        const trackData = DAW.tracks.find(t => t.id === trackContainer.dataset.trackId);
+        if (trackData) trackData.scAmount = parseInt(val);
+    }
+
+    // 4. Track Név -> Mixer (Ez is marad)
+    else if (e.target.classList.contains('track-name')) {
+        const trackId = e.target.closest('.track-container').dataset.trackId;
+        const mixChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
+        if (mixChan) mixChan.querySelector('.mix-header').textContent = e.target.textContent;
+
+        // ÚJ: Nevet is mentjük az Agyba!
+        const trackData = DAW.tracks.find(t => t.id === trackId);
+        if (trackData) trackData.name = e.target.textContent;
+    }
+});
+
 
 // --- ENTER TILTÁSA A SÁV NEVÉNEK ÁTÍRÁSAKOR ---
 document.addEventListener('keydown', (e) => {
@@ -1238,8 +1483,24 @@ document.addEventListener('click', e => {
         return;
     }
 
+    // 2. MUTE GOMB (Bárhol is kattintod meg!)
+    const muteBtn = e.target.closest('.daw-btn.mute, .mix-mute');
+    if (muteBtn) {
+        const trackId = muteBtn.closest('[data-track-id]').dataset.trackId;
+        toggleTrackMute(trackId);
+        return;
+    }
+
+    // 3. SOLO GOMB (Bárhol is kattintod meg!)
+    const soloBtn = e.target.closest('.daw-btn.solo, .mix-solo');
+    if (soloBtn) {
+        const trackId = soloBtn.closest('[data-track-id]').dataset.trackId;
+        toggleTrackSolo(trackId);
+        return;
+    }
+
     // 2. MUTE GOMB
-    const muteBtn = e.target.closest('.daw-btn.mute');
+    /*const muteBtn = e.target.closest('.daw-btn.mute');
     if (muteBtn) {
         const trackId = muteBtn.closest('[data-track-id]').dataset.trackId;
         const track = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
@@ -1254,10 +1515,10 @@ document.addEventListener('click', e => {
         syncMixerButtons(trackId);
         updateSoloStates();
         return;
-    }
+    }*/
 
     // 3. SOLO GOMB
-    const soloBtn = e.target.closest('.daw-btn.solo');
+    /*const soloBtn = e.target.closest('.daw-btn.solo');
     if (soloBtn) {
         const trackId = soloBtn.closest('[data-track-id]').dataset.trackId;
         const track = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
@@ -1272,7 +1533,7 @@ document.addEventListener('click', e => {
         syncMixerButtons(trackId);
         updateSoloStates();
         return;
-    }
+    }*/
 
     // 4. MONITOR & EGYÉB (Csak a felső sávon)
     const monitorBtn = e.target.closest('.daw-btn.monitor');
@@ -1489,7 +1750,7 @@ list.addEventListener('click', e => {
     }
 });
 
-function syncMixerButtons(trackId) {
+/*function syncMixerButtons(trackId) {
     const track = document.querySelector(`.track-container[data-track-id="${trackId}"]`);
     const mixChan = document.querySelector(`.mixer-channel[data-track-id="${trackId}"]`);
     if(!track || !mixChan) return;
@@ -1499,7 +1760,7 @@ function syncMixerButtons(trackId) {
     
     mixChan.querySelector('.mix-mute').classList.toggle('active', isMuted);
     mixChan.querySelector('.mix-solo').classList.toggle('active', isSolo);
-}
+}*/
 
 function updateSoloStates() {
     const allTracks = document.querySelectorAll('.track-container');
@@ -1626,9 +1887,16 @@ document.querySelectorAll('.loop-btn, .play-btn, .rec-btn, .click-btn, .snap-btn
 });
 
 const bpmInput = document.querySelector('.bpm-input');
-bpmInput.addEventListener('input', () => {
+
+/*bpmInput.addEventListener('input', () => {
     bpmInput.value = bpmInput.value.replace(/\D/g, '');
+});*/
+
+bpmInput.addEventListener('change', (e) => {
+    setBpm(e.target.value);
 });
+
+
 bpmInput.addEventListener('change', () => {
     let val = parseInt(bpmInput.value);
     if (isNaN(val) || val < 20) val = 20;
@@ -1981,7 +2249,7 @@ if (deleteBtn) {
 // --- GÖRGETÉS ÉS PLAYHEAD (SZINKRONIZÁLT) ---
 // ==========================================================
 let globalScrollX = 0;
-let currentPlayTime = 0; 
+//let currentPlayTime = 0; 
 const playTimeDisplay = document.querySelector('.play-time-btn');
 
 function secondsPerBar() { 
@@ -2534,9 +2802,9 @@ document.addEventListener('wheel', (e) => {
 // ==========================================================
 // --- LEJÁTSZÁS, REC ÉS EXPORT ---
 // ==========================================================
-let isPlaying = false;
+/*let isPlaying = false;*/
 let startPlayTime = 0;     
-let startOffset = 0;        
+//let startOffset = 0;        
 let animationFrameId;       
 let audioSources = [];      
 let activeRecorders = []; 
@@ -3025,7 +3293,7 @@ rewindBtn.addEventListener('click', () => {
 const ICON_PLAY = `<svg width="16" height="16" viewBox="0 0 16 16"><polygon points="3,2 13,8 3,14" fill="currentColor"/></svg>`;
 const ICON_PAUSE = `<svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="2" width="4" height="12" fill="currentColor"/><rect x="9" y="2" width="4" height="12" fill="currentColor"/></svg>`;
 
-playBtn.onclick = (e) => {
+/*playBtn.onclick = (e) => {
     playBtn.classList.toggle('active');
     if (isPlaying) {
         stopPlayback();
@@ -3034,6 +3302,10 @@ playBtn.onclick = (e) => {
         startPlayback();
         playBtn.innerHTML = ICON_PAUSE;
     }
+};*/
+
+playBtn.onclick = () => {
+    togglePlay();
 };
 
 let lookahead = 25.0; 
