@@ -238,18 +238,22 @@
 
    <div id="seq-modal-overlay">
     <div id="seq-modal">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #333;">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <h2 id="seq-title" style="margin: 0; font-family: var(--font-mono); font-size: 1.2rem; text-transform: uppercase;">Editor</h2>
-                <select id="preset-selector" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px 8px; font-family: var(--font-mono); border-radius: 3px; outline: none; cursor: pointer; display: none;">
-                </select>
-            </div>
-            <button id="close-seq-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">×</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #333; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h2 id="seq-title" style="margin: 0; font-family: var(--font-mono); font-size: 1.2rem; text-transform: uppercase;">Editor</h2>
+            
+            <button id="editor-play-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16"><polygon points="3,2 13,8 3,14" fill="currentColor"/></svg>
+            </button>
+
+            <select id="preset-selector" style="background: #222; color: #fff; border: 1px solid #555; padding: 4px 8px; font-family: var(--font-mono); border-radius: 3px; outline: none; cursor: pointer; display: none;">
+            </select>
         </div>
-        
-        <div id="seq-grid" style="display: flex; flex-direction: column; gap: 4px; overflow-x: auto;"></div>
+        <button id="close-seq-btn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">×</button>
     </div>
+    
+    <div id="seq-grid" style="display: flex; flex-direction: column; gap: 4px; overflow-x: auto;"></div>
+   </div>
 </div>
  </div>
 
