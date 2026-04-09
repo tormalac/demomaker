@@ -3308,6 +3308,47 @@ playBtn.onclick = () => {
     togglePlay();
 };
 
+const editorPlayBtn = document.getElementById('editor-play-btn');
+
+if (editorPlayBtn) {
+    editorPlayBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePlay(); // Meghívja a meglévő lejátszás logikát
+        
+        // Frissítsük az editor gomb ikonját is
+        if (DAW.transport.isPlaying) {
+            editorPlayBtn.innerHTML = ICON_PAUSE;
+            editorPlayBtn.style.color = 'var(--accent)';
+        } else {
+            editorPlayBtn.innerHTML = ICON_PLAY;
+            editorPlayBtn.style.color = '';
+        }
+    });
+}
+
+// Módosítsd a meglévő togglePlay-t, hogy az Editor gombot is szinkronizálja:
+// Keresd meg a function togglePlay() részt és egészítsd ki:
+
+function togglePlay() {
+    DAW.transport.isPlaying = !DAW.transport.isPlaying;
+    isPlaying = DAW.transport.isPlaying;
+    
+    const playBtn = document.querySelector('.play-btn');
+    const editorPlayBtn = document.getElementById('editor-play-btn'); // Új sor
+
+    if (isPlaying) {
+        playBtn.classList.add('active');
+        playBtn.innerHTML = ICON_PAUSE; 
+        if(editorPlayBtn) editorPlayBtn.innerHTML = ICON_PAUSE; // Új sor
+        startPlayback(); 
+    } else {
+        playBtn.classList.remove('active');
+        playBtn.innerHTML = ICON_PLAY;
+        if(editorPlayBtn) editorPlayBtn.innerHTML = ICON_PLAY; // Új sor
+        stopPlayback(); 
+    }
+}
+
 let lookahead = 25.0; 
 let scheduleAheadTime = 0.1; 
 let nextNoteTime = 0.0; 
