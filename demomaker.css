@@ -780,7 +780,7 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
     overflow-y: auto;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 20px; /* Hogy az utolsó sor is látszódjon */
+    padding: 4px; 
 }
 
 #editor-play-btn {
@@ -1639,7 +1639,7 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 .seq-row {
     display: flex;
     align-items: center;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .seq-inst-name {
@@ -1654,7 +1654,7 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 
 .seq-steps {
     display: flex;
-    gap: 4px;
+    gap: 2px;
     flex: 1;
 }
 
@@ -1668,7 +1668,7 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 }
 
 .seq-step-btn:hover {
-    background: #444 !important;
+    background: #fff !important;
 }
 
 /* ==========================================================
@@ -1739,16 +1739,15 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
    --- DINAMIKUS RÁCS OSZTÁLYOK (A JS adja hozzájuk) ---
    ========================================================== */
 
-/* Világosabb oszlopok a rácsban */
+/* --- Látványos rács színezés --- */
 .seq-step-btn.beat-even,
 .pr-cell.beat-even {
-    background: rgba(255, 255, 255, 0.03); 
+    background-color: rgba(255, 255, 255, 0.04) !important; /* Világosabb szürke */
 }
 
-/* Sötétebb oszlopok a rácsban */
 .seq-step-btn.beat-odd,
 .pr-cell.beat-odd {
-    background: #181818; 
+    background-color: rgba(0, 0, 0, 0.2) !important; /* Mély fekete/sötét szürke */
 }
 
 /* Vastagabb választóvonal minden ütés (beat) elején */
