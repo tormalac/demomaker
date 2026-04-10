@@ -23,19 +23,21 @@ fxStyles.innerHTML = `
 }
 
 #fx-modal {
-    position: absolute; /* Szabadon pozicionálható */
+    position: absolute;
     top: 100px;
-    left: 250px;
-    pointer-events: auto; /* Az ablakon belül viszont kell a kattintás */
+    left: 20px; /* Mobilon ne legyen túl messze a széltől */
+    pointer-events: auto;
     background: #111; 
     border: 1px solid var(--accent); 
     border-radius: 4px;
-    width: 600px; /* Kompaktabb méret */
-    height: 450px;
+    width: 90vw; /* Fix pixel helyett nézetablak szélesség */
+    max-width: 600px; /* De asztalin ne legyen óriási */
+    height: 70vh; /* Fix magasság helyett rugalmas tartomány */
+    max-height: 500px;
     display: flex; 
     flex-direction: column;
     box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-    cursor: default;
+    overflow: hidden; /* Megállítja a kilógó elemeket */
 }
 
 .fx-header {
@@ -63,10 +65,14 @@ fxStyles.innerHTML = `
     
     /* FX Lánc (Bal oldal) */
     .fx-chain-sidebar { 
-        width: 200px; background: #0a0a0a; border-right: 1px solid #333; 
-        padding: 10px; display: flex; flex-direction: column; flex-shrink: 0; 
-        position: relative; 
-        z-index: 100;       
+        width: 180px; 
+        background: #0a0a0a; 
+        border-right: 1px solid #333; 
+        padding: 10px; 
+        display: flex; 
+        flex-direction: column; 
+        flex-shrink: 0; 
+        box-sizing: border-box; /* Fontos a szélesség pontos számításához */
     }
     #fx-list { flex: 1; overflow-y: auto; margin-bottom: 10px; min-height: 100px; }
     .fx-slot {
@@ -121,8 +127,13 @@ fxStyles.innerHTML = `
     .plugin-pick-btn:hover { background: rgba(0,255,213,0.1); color: var(--accent); }
 
     .fx-plugin-area { 
-        flex: 1; display: flex; align-items: center; justify-content: center; 
-        background: #151515; padding: 20px; overflow-y: auto;
+        flex: 1; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        background: #151515; 
+        padding: 10px; 
+        overflow: auto;
     }
 
     /* --- MOBIL NÉZET --- */
