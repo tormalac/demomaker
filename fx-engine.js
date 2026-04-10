@@ -30,6 +30,7 @@ fxStyles.innerHTML = `
     background: #111; 
     border: 1px solid var(--accent); 
     border-radius: 4px;
+    min-width: 320px;
     width: 90vw; /* Fix pixel helyett nézetablak szélesség */
     max-width: 600px; /* De asztalin ne legyen óriási */
     height: 70vh; /* Fix magasság helyett rugalmas tartomány */
