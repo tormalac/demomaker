@@ -2618,19 +2618,19 @@ const makeDraggable = (modal, header) => {
         pos3 = clientX;
         pos4 = clientY;
 
-        // Új pozíció kiszámítása az aktuális offset alapján
+        // A makeDraggable függvényen belül a pozicionálásnál:
         let newTop = (modal.offsetTop - pos2);
         let newLeft = (modal.offsetLeft - pos1);
 
-        // Képernyőn belül tartás (Safety bounds)
-        if (newTop < 0) newTop = 0;
-        if (newLeft < 0) newLeft = 0;
-        if (newLeft > window.innerWidth - modal.offsetWidth) 
-            newLeft = window.innerWidth - modal.offsetWidth;
-        if (newTop > window.innerHeight - 50) 
-            newTop = window.innerHeight - 50;
+        // Képernyőn belül tartás (Landscape fix)
+        const windowH = window.innerHeight;
+        const windowW = window.innerWidth;
 
-        // Pozíció beállítása
+        if (newTop < 0) newTop = 0;
+        if (newTop > windowH - 50) newTop = windowH - 50; // Mindig maradjon kint a fejléc
+        if (newLeft < 0) newLeft = 0;
+        if (newLeft > windowW - 50) newLeft = windowW - 50;
+
         modal.style.top = newTop + "px";
         modal.style.left = newLeft + "px";
         modal.style.bottom = "auto"; // Biztosítjuk, hogy ne legyen rögzítve az alja
