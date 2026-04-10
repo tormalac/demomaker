@@ -1667,10 +1667,6 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
     transition: background 0.1s;
 }
 
-.seq-step-btn:hover {
-    background: #fff !important;
-}
-
 /* ==========================================================
    --- PIANO ROLL STÍLUSOK ---
    ========================================================== */
@@ -1731,10 +1727,6 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
     box-sizing: border-box;
 }
 
-.pr-cell:hover {
-    background: rgba(255, 255, 255, 0.1) !important;
-}
-
 /* ==========================================================
    --- DINAMIKUS RÁCS OSZTÁLYOK (A JS adja hozzájuk) ---
    ========================================================== */
@@ -1754,6 +1746,14 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 .seq-step-btn.beat-start,
 .pr-cell.beat-start {
     border-left: 2px solid #555; 
+}
+
+.pr-cell:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.seq-step-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* ==========================================================
