@@ -1126,7 +1126,7 @@ const instruments = [
 // --- DRUM EDITOR (PATTERN KLIP SZERKESZTŐ) ---
 function openDrumEditor(clip) {
     if (isPlaying) {
-    stopPlayback();
+        stopPlayback();
     }
 
     document.body.classList.add('editor-active-ui');
@@ -1139,7 +1139,6 @@ function openDrumEditor(clip) {
     startOffset = clipStart;
     updatePlayheadVisuals(); 
     
-    // Opcionális: oda is görgetjük a képernyőt, hogy középen legyen
     if (typeof setScroll === 'function') {
         setScroll(Math.max(0, (clipStart * PX_PER_SECOND) - 100));
     }
@@ -1149,12 +1148,10 @@ function openDrumEditor(clip) {
     const seqGrid = document.getElementById('seq-grid');
     const title = document.getElementById('seq-title');
     
-    // Kék szín a dobgépnek
     seqModal.style.borderColor = '#3fa9f5';
     title.style.color = '#3fa9f5';
     title.textContent = clip.querySelector('.clip-name').textContent + ' - EDITOR';
 
-    // --- ÚJ: DOB PRESET VÁLASZTÓ ---
     const trackContainer = clip.closest('.track-container');
     const presetSelector = document.getElementById('preset-selector');
     presetSelector.style.display = 'block';
@@ -1164,13 +1161,12 @@ function openDrumEditor(clip) {
         <option value="Synthwave">Retro Synthwave</option>
         <option value="Dark Matter (Modern)">Dark Matter (Modern)</option>
     `;
-    // Betöltjük a mentett hangot, vagy adunk egy alapértelmezettet
     presetSelector.value = trackContainer.dataset.preset || 'TR-808 (Deep)';
     presetSelector.onchange = (e) => { 
         trackContainer.dataset.preset = e.target.value; 
     };
     
-    const instruments = [
+    const drumInstruments = [
         { id: 'cr', name: 'Crash', note: 49 },
         { id: 'rd', name: 'Ride', note: 51 },
         { id: 'ht', name: 'Hi Tom', note: 48 },
@@ -1182,18 +1178,17 @@ function openDrumEditor(clip) {
         { id: 'bd', name: 'Kick', note: 36 }
     ];
 
-    // --- ÚJ, DINAMIKUS RÁCS KISZÁMÍTÁSA ---
-    // Hány 16-od hang fér el egy ütemben az aktuális ütemmutató szerint?
-    const stepsPerBar = timeSig[0] * (16 / timeSig[1]); 
+    // --- DINAMIKUS GRID SZÁMÍTÁS (Egyetlen helyen deklarálva) ---
+    const gridValue = GRID_MAP[currentGrid] || 0.5;
+    const beatsPerBar = timeSig[0];
+    const stepsPerBeat = 1 / gridValue; 
+    const stepsPerBar = beatsPerBar * stepsPerBeat;
     const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
-    
-    // Egy 16-od hang abszolút hossza másodpercben (ez mindig fix a BPM-hez képest)
-    const secPerStep = (60 / bpm) / 4;
-
+    const secPerStep = (60 / bpm) * gridValue;
 
     seqGrid.innerHTML = '';
 
-    instruments.forEach(inst => {
+    drumInstruments.forEach(inst => {
         const row = document.createElement('div');
         row.className = 'seq-row';
         
@@ -1205,25 +1200,35 @@ function openDrumEditor(clip) {
         const stepsContainer = document.createElement('div');
         stepsContainer.className = 'seq-steps';
         
-        // --- DINAMIKUS DOB RÁCS CIKLUS ---
-        const stepsPerBeat = 16 / timeSig[1]; // Kiszámolja, hány lépés egy ütés (pl. /4 esetén 4, /8 esetén 2)
+        for (let i = 0; i < totalSteps; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'seq-step-btn';
 
-        for(let i = 0; i < totalSteps; i++) {
-            const btn = document.createElement('button');
-            btn.className = 'seq-step-btn';
-            
-            // Dinamikus CSS osztályok ráosztása a Time Sig alapján!
-            if (i % stepsPerBeat === 0) btn.classList.add('beat-start');
-            if (Math.floor(i / stepsPerBeat) % 2 === 0) btn.classList.add('beat-even');
+        if (Math.floor(i / stepsPerBeat) % 2 === 0) btn.classList.add('beat-even');
             else btn.classList.add('beat-odd');
+
+        // SZÍNEZÉS: Az ütemindex alapján
+        /*const currentBarIndex = Math.floor(i / stepsPerBar);
+        
+        if (currentBarIndex % 2 === 0) {
+            btn.classList.add('beat-even');
+        } else {
+            btn.classList.add('beat-odd');
+        }*/
+
+        // VIZUÁLIS HATÁROK
+        if (i % stepsPerBar === 0) {
+            btn.style.borderLeft = "2px solid rgba(255,255,255,0.3)"; 
+        } else if (i % stepsPerBeat === 0) {
+            btn.style.borderLeft = "1px solid rgba(255,255,255,0.1)"; 
+        }
+
             
-            // Megnézzük, van-e hangjegy a klipben ezen az időponton
+            // --- Jegyzet adatok és eseménykezelés (a többi marad) ---
             const noteTime = i * secPerStep;
             const existingNoteIndex = clip.patternData.notes.findIndex(n => n.note === inst.note && Math.abs(n.start - noteTime) < 0.01);
-            
             if (existingNoteIndex !== -1) btn.classList.add('active');
             
-            // Szerkesztés (Kattintás) logikája
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
@@ -1232,14 +1237,11 @@ function openDrumEditor(clip) {
                 } else {
                     btn.classList.add('active');
                     clip.patternData.notes.push({note: inst.note, start: noteTime, duration: 0.1, velocity: 100});
-                    
                     if (!window.analogDrums) window.analogDrums = new AnalogDrumMachine(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
                     window.analogDrums.playNote(inst.note, audioCtx.currentTime, 100, trackOutput, trackContainer.dataset.preset);
                 }
-                
-                const color = clip.closest('.track-container').classList.contains('drum') ? '#3fa9f5' : '#b084f7';
-                drawPattern(clip.querySelector('canvas'), clip, color);
+                drawPattern(clip.querySelector('canvas'), clip, '#3fa9f5');
             });
             stepsContainer.appendChild(btn);
         }
@@ -1250,42 +1252,32 @@ function openDrumEditor(clip) {
     seqOverlay.style.display = 'flex';
 }
 
+
 // --- PIANO ROLL EDITOR (CUBASE / FL STUDIO STYLE) ---
 function openPianoRoll(clip) {
-    if (isPlaying) {
-    stopPlayback();
-    }
+    if (isPlaying) { stopPlayback(); }
 
     document.body.classList.add('editor-active-ui');
-
     isPatternMode = true;
     currentEditingClip = clip;
-    const clipStart = parseFloat(clip.dataset.start);
-    currentPlayTime = clipStart;
-    startOffset = clipStart;
-    updatePlayheadVisuals(); 
-    
-    // Opcionális: oda is görgetjük a képernyőt, hogy középen legyen
-    if (typeof setScroll === 'function') {
-        setScroll(Math.max(0, (clipStart * PX_PER_SECOND) - 100));
-    }
+
+    const trackContainer = clip.closest('.track-container');
+    const trackColor = getTrackColor(trackContainer); // A meglévő színfüggvényed
 
     const seqOverlay = document.getElementById('seq-modal-overlay');
     const seqModal = document.getElementById('seq-modal'); 
     const seqGrid = document.getElementById('seq-grid');
     const title = document.getElementById('seq-title');
     
-    // 1. Szín lekérdezése az okos függvényünkkel
-    const trackContainer = clip.closest('.track-container');
-    let trackColor = getTrackColor(trackContainer); 
-
-    // 2. Ablak és bogyók színezése
+    // --- KERET ÉS CÍM SZÍNÉNEK BEÁLLÍTÁSA ---
     seqModal.style.borderColor = trackColor;
     title.style.color = trackColor;
     title.textContent = clip.querySelector('.clip-name').textContent + ' - PIANO ROLL';
+    
+    // A hangjegyek színe is kövesse a tracket
     seqGrid.style.setProperty('--piano-roll-note-color', trackColor);
 
-    // 3. Preset Selector
+    // --- DINAMIKUS SZINTETIZÁTOR VÁLASZTÓ ---
     const presetSelector = document.getElementById('preset-selector');
     presetSelector.style.display = 'block';
     
@@ -1293,55 +1285,42 @@ function openPianoRoll(clip) {
     const isSynth = trackContainer.classList.contains('synth');
     const isGuitar = trackContainer.classList.contains('guitar');
 
-    // Dinamikus legördülő menü összeállítása
     if (isGuitar) {
         presetSelector.innerHTML = `
             <option value="Telecaster (Twang)">Tele Twang</option>
             <option value="Les Paul (Warm)">LP Warm</option>
-            <option value="Classic Saw">Classic Saw Lead</option>
-        `;
+            <option value="Classic Saw">Classic Saw Lead</option>`;
     } else if (isBass) {
         presetSelector.innerHTML = `
             <option value="Precision Bass (Punchy)">P Bass Punchy</option>
             <option value="Jazz Bass (Mellow)">J Bass Mellow</option>
-            <option value="Deep Bass">Deep Synth Bass</option>
-        `;
+            <option value="Deep Bass">Deep Synth Bass</option>`;
     } else {
-        // Alapértelmezett: Synth
         presetSelector.innerHTML = `
             <option value="Acoustic Piano">Acoustic Piano</option>
-            <option value="Minimoog (Fat Lead)">Mooog Mini D (Lead)</option>
-            <option value="CS-80 (Blade Runner)">Yam CS80 (Pad)</option>
-            <option value="TB-303 (Acid Bass)">Rol TB303 (Acid)</option>
+            <option value="Minimoog (Fat Lead)">Minimoog</option>
+            <option value="CS-80 (Blade Runner)">CS-80 Pad</option>
+            <option value="TB-303 (Acid Bass)">TB-303 Acid</option>
             <option value="Classic Saw">Classic Saw</option>
-            <option value="8-Bit Square">8-Bit Square</option>
-        `;
+            <option value="8-Bit Square">8-Bit Square</option>`;
     }
-
-    // Alapértelmezett érték biztonságos beállítása az induláshoz
-    presetSelector.value = trackContainer.dataset.preset || (isGuitar ? 'Telecaster (Twang)' : (isBass ? 'Precision Bass (Punchy)' : 'Acoustic Piano'));
-    if (!trackContainer.dataset.preset) trackContainer.dataset.preset = presetSelector.value;
     
+    presetSelector.value = trackContainer.dataset.preset || (isGuitar ? 'Telecaster (Twang)' : (isBass ? 'Precision Bass (Punchy)' : 'Acoustic Piano'));
     presetSelector.onchange = (e) => { trackContainer.dataset.preset = e.target.value; };
 
-    let startOct = 4;
-    let endOct = 2; // Alapból 3 oktáv
-    
-    if (isBass) {
-        startOct = 3;
-        endOct = 1; // Basszus: mélyebb tartomány (3, 2, 1)
-    } else if (isSynth) {
-        startOct = 5;
-        endOct = 2; // Synth: szélesebb, 4 oktáv (5, 4, 3, 2)
-    }
+    // ... innen jön a korábbi pianoNotes
 
-    const notes = [];
+    let startOct = 4, endOct = 2;
+    if (isBass) { startOct = 3; endOct = 1; }
+    else if (isSynth) { startOct = 5; endOct = 2; }
+
+    const pianoNotes = [];
     const noteNames = ['B','A#','A','G#','G','F#','F','E','D#','D','C#','C'];
     const isBlack = [false, true, false, true, false, true, false, false, true, false, true, false];
     
     for(let oct = startOct; oct >= endOct; oct--) {
         for(let i = 0; i < 12; i++) {
-            notes.push({
+            pianoNotes.push({
                 name: noteNames[i] + oct,
                 note: (oct + 1) * 12 + (11 - i), 
                 type: isBlack[i] ? 'black' : 'white'
@@ -1349,9 +1328,13 @@ function openPianoRoll(clip) {
         }
     }
 
-    const stepsPerBar = timeSig[0] * (16 / timeSig[1]); 
+    // --- DINAMIKUS GRID SZÁMÍTÁS ---
+    const gridValue = GRID_MAP[currentGrid] || 0.5;
+    const beatsPerBar = timeSig[0];
+    const stepsPerBeat = 1 / gridValue; 
+    const stepsPerBar = beatsPerBar * stepsPerBeat;
     const totalSteps = clip.patternData.lengthInBars * stepsPerBar;
-    const secPerStep = (60 / bpm) / 4; 
+    const secPerStep = (60 / bpm) * gridValue;
 
     seqGrid.style.gap = '0';
     seqGrid.style.padding = '0';
@@ -1360,12 +1343,11 @@ function openPianoRoll(clip) {
     let isDrawingPR = false;
     let currentPRNote = null;
     
-    document.addEventListener('mouseup', () => { isDrawingPR = false; currentPRNote = null; });
-    document.addEventListener('touchend', () => { isDrawingPR = false; currentPRNote = null; });
+    const stopDrawing = () => { isDrawingPR = false; currentPRNote = null; };
+    document.addEventListener('mouseup', stopDrawing);
+    document.addEventListener('touchend', stopDrawing);
 
-    const stepsPerBeat = 16 / timeSig[1]; 
-
-    notes.forEach(key => {
+    pianoNotes.forEach(key => {
         const row = document.createElement('div');
         row.className = 'pr-row';
         if (key.type === 'black') row.classList.add('black-row'); 
@@ -1381,16 +1363,16 @@ function openPianoRoll(clip) {
         for(let i = 0; i < totalSteps; i++) {
             const cell = document.createElement('div');
             cell.className = 'pr-cell';
-            
             cell.dataset.time = i * secPerStep;
             cell.dataset.note = key.note;
             
-            if (i % stepsPerBeat === 0) cell.classList.add('beat-start');
+            if (i % stepsPerBar === 0) cell.style.borderLeft = "2px solid #666";
+            else if (i % stepsPerBeat === 0) cell.classList.add('beat-start');
+
             if (Math.floor(i / stepsPerBeat) % 2 === 0) cell.classList.add('beat-even');
             else cell.classList.add('beat-odd');
             
             const noteTime = i * secPerStep;
-            
             const isActive = clip.patternData.notes.some(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
             const isStart = clip.patternData.notes.some(n => n.note === key.note && Math.abs(noteTime - n.start) < 0.001);
 
@@ -1400,16 +1382,13 @@ function openPianoRoll(clip) {
             const startDraw = (e) => {
                 if (e.cancelable) e.preventDefault(); 
                 isDrawingPR = true;
-                
                 if (cell.classList.contains('active')) {
                     const idx = clip.patternData.notes.findIndex(n => n.note === key.note && noteTime >= n.start - 0.001 && noteTime < n.start + n.duration - 0.001);
                     if (idx !== -1) clip.patternData.notes.splice(idx, 1);
-                    
                     Array.from(stepsContainer.children).forEach((c, idx) => {
                         const t = idx * secPerStep;
                         const active = clip.patternData.notes.some(n => n.note === key.note && t >= n.start - 0.001 && t < n.start + n.duration - 0.001);
                         const start = clip.patternData.notes.some(n => n.note === key.note && Math.abs(t - n.start) < 0.001);
-                        
                         if (!active) c.classList.remove('active', 'note-start'); 
                         else {
                             if (start) c.classList.add('note-start');
@@ -1420,12 +1399,11 @@ function openPianoRoll(clip) {
                     currentPRNote = {note: key.note, start: noteTime, duration: secPerStep, velocity: 100};
                     clip.patternData.notes.push(currentPRNote);
                     cell.classList.add('active', 'note-start'); 
-                    
                     if (!window.analogSynth) window.analogSynth = new AnalogSynth(audioCtx);
                     const trackOutput = clip.closest('.track-container').trackPannerNode || masterGain;
                     window.analogSynth.playNote(key.note, audioCtx.currentTime, 0.2, 100, trackOutput, trackContainer.dataset.preset);
                 }
-                drawPattern(clip.querySelector('canvas'), clip, trackColor); // Itt adja át a színt!
+                drawPattern(clip.querySelector('canvas'), clip, trackColor);
             };
 
             cell.addEventListener('mousedown', startDraw);
@@ -1439,31 +1417,11 @@ function openPianoRoll(clip) {
                 }
             });
             
-            cell.addEventListener('touchmove', (e) => {
-                if (!isDrawingPR || !currentPRNote) return;
-                if (e.cancelable) e.preventDefault(); 
-                
-                const touch = e.touches[0];
-                const targetCell = document.elementFromPoint(touch.clientX, touch.clientY);
-                
-                if (targetCell && targetCell.classList.contains('pr-cell')) {
-                    const cellTime = parseFloat(targetCell.dataset.time);
-                    const cellNote = parseInt(targetCell.dataset.note);
-                    
-                    if (cellNote === currentPRNote.note && cellTime > currentPRNote.start) {
-                        currentPRNote.duration = (cellTime - currentPRNote.start) + secPerStep;
-                        targetCell.classList.add('active');
-                        drawPattern(clip.querySelector('canvas'), clip, trackColor);
-                    }
-                }
-            }, {passive: false});
-            
             stepsContainer.appendChild(cell);
         }
         row.appendChild(stepsContainer);
         seqGrid.appendChild(row);
     });
-
     seqOverlay.style.display = 'flex';
 }
 
