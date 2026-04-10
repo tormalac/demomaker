@@ -2566,33 +2566,74 @@ document.addEventListener('touchcancel', handleDragEnd);
 const makeDraggable = (modal, header) => {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
 
-    header.onmousedown = dragMouseDown;
+    // Események rögzítése a fejlécre (Egér + Touch)
+    header.onmousedown = dragStart;
+    header.addEventListener('touchstart', dragStart, { passive: false });
 
-    function dragMouseDown(e) {
-        e.preventDefault();
-        pos3 = e.clientX;
-        pos4 = e.clientY;
+    function dragStart(e) {
+        // Megállapítjuk, hogy touch vagy egér esemény-e a koordinátákhoz
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // Csak akkor vonjuk el a fókuszt, ha nem gombra kattintottak (hogy a bezáró X működjön)
+        if (e.target.tagName !== 'BUTTON') {
+            // e.preventDefault(); // Opcionális, ha zavarja a gombokat, hagyd kikommentelve
+        }
+
+        pos3 = clientX;
+        pos4 = clientY;
+
+        // Egér események (Asztali gép)
         document.onmouseup = closeDragElement;
         document.onmousemove = elementDrag;
+        
+        // Touch események (Mobil)
+        document.addEventListener('touchend', closeDragElement);
+        document.addEventListener('touchmove', elementDrag, { passive: false });
     }
 
     function elementDrag(e) {
-        e.preventDefault();
-        pos1 = pos3 - e.clientX;
-        pos2 = pos4 - e.clientY;
-        pos3 = e.clientX;
-        pos4 = e.clientY;
-        modal.style.top = (modal.style.top ? parseInt(modal.style.top) : 100) - pos2 + "px";
-        modal.style.left = (modal.style.left ? parseInt(modal.style.left) : 250) - pos1 + "px";
+        // Koordináták kinyerése (legyen az egér vagy ujj)
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // Görgetés tiltása húzás közben (mobilon fontos)
+        if (e.cancelable) e.preventDefault();
+
+        // Elmozdulás kiszámítása
+        pos1 = pos3 - clientX;
+        pos2 = pos4 - clientY;
+        pos3 = clientX;
+        pos4 = clientY;
+
+        // Új pozíció kiszámítása az aktuális offset alapján
+        let newTop = (modal.offsetTop - pos2);
+        let newLeft = (modal.offsetLeft - pos1);
+
+        // Képernyőn belül tartás (Safety bounds)
+        if (newTop < 0) newTop = 0;
+        if (newLeft < 0) newLeft = 0;
+        if (newLeft > window.innerWidth - modal.offsetWidth) 
+            newLeft = window.innerWidth - modal.offsetWidth;
+        if (newTop > window.innerHeight - 50) 
+            newTop = window.innerHeight - 50;
+
+        // Pozíció beállítása
+        modal.style.top = newTop + "px";
+        modal.style.left = newLeft + "px";
+        modal.style.bottom = "auto"; // Biztosítjuk, hogy ne legyen rögzítve az alja
     }
 
     function closeDragElement() {
+        // Minden figyelő leállítása
         document.onmouseup = null;
         document.onmousemove = null;
+        document.removeEventListener('touchend', closeDragElement);
+        document.removeEventListener('touchmove', elementDrag);
     }
 };
 
-// Inicializálás
-const modal = document.getElementById('fx-modal');
-const header = modal.querySelector('.fx-header');
-makeDraggable(modal, header);
+// Az inicializálás maradhat a függvény után:
+const fxModal = document.getElementById('fx-modal');
+const fxHeader = fxModal.querySelector('.fx-header');
+makeDraggable(fxModal, fxHeader);
