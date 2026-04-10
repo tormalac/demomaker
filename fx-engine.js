@@ -12,34 +12,47 @@ let startVal = 0;
 
 const fxStyles = document.createElement('style');
 fxStyles.innerHTML = `
-    /* --- FX Modal Alap Stílusok (Reszponzív) --- */
-    #fx-modal-overlay {
-        position: fixed; 
-        top: 0; bottom: 0; left: 0; right: 0;
-        background: rgba(0,0,0,0.85); z-index: 5000;
-        display: none; 
-        align-items: flex-start; 
-        justify-content: center;
-        overflow-y: auto; 
-        padding: 20px 0;
-        backdrop-filter: blur(5px);
-    }
-    #fx-modal {
-        background: #111; border: 1px solid var(--accent); border-radius: 4px;
-        width: 90%; max-width: 800px; 
-        min-height: 480px;
-        flex-shrink: 0; 
-        margin: auto; 
-        display: flex; flex-direction: column;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-        overflow-y: auto;
-    }
-    .fx-header {
-        background: #000; padding: 10px 20px; border-bottom: 1px solid #333;
-        display: flex; justify-content: space-between; align-items: center;
-        flex-shrink: 0; z-index: 20;
-        text-transform: uppercase;
-    }
+/* --- FX Modal Stílusok --- */
+#fx-modal-overlay {
+    position: fixed; 
+    top: 0; left: 0; width: 0; height: 0; /* Már nem takarja el az egész képernyőt */
+    background: transparent; 
+    z-index: 5000;
+    display: none; 
+    pointer-events: none; /* Átengedjük a kattintást, ha nem az ablakra nyomnak */
+}
+
+#fx-modal {
+    position: absolute; /* Szabadon pozicionálható */
+    top: 100px;
+    left: 250px;
+    pointer-events: auto; /* Az ablakon belül viszont kell a kattintás */
+    background: #111; 
+    border: 1px solid var(--accent); 
+    border-radius: 4px;
+    width: 600px; /* Kompaktabb méret */
+    height: 450px;
+    display: flex; 
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    cursor: default;
+}
+
+.fx-header {
+    background: #000; 
+    padding: 8px 15px; 
+    border-bottom: 1px solid #333;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    cursor: grab; /* Jelezzük, hogy itt lehet megfogni */
+    user-select: none;
+}
+
+.fx-header:active {
+    cursor: grabbing;
+}
+
     .fx-header h2 { margin: 0; font-size: 1rem; color: #fff; font-family: var(--font-mono); }
     .close-fx { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1.5rem; }
     
@@ -2548,3 +2561,38 @@ document.addEventListener('touchmove', handleDragMove, { passive: false });
 document.addEventListener('mouseup', handleDragEnd);
 document.addEventListener('touchend', handleDragEnd);
 document.addEventListener('touchcancel', handleDragEnd);
+
+// --- Ablak mozgatásának logikája ---
+const makeDraggable = (modal, header) => {
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+    header.onmousedown = dragMouseDown;
+
+    function dragMouseDown(e) {
+        e.preventDefault();
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        modal.style.top = (modal.style.top ? parseInt(modal.style.top) : 100) - pos2 + "px";
+        modal.style.left = (modal.style.left ? parseInt(modal.style.left) : 250) - pos1 + "px";
+    }
+
+    function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+    }
+};
+
+// Inicializálás
+const modal = document.getElementById('fx-modal');
+const header = modal.querySelector('.fx-header');
+makeDraggable(modal, header);
