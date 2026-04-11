@@ -2681,18 +2681,18 @@ function rebuildFxRouting(track) {
 window.restoreFxChain = function(track, savedFxChain) {
     if (!savedFxChain || savedFxChain.length === 0) return;
 
-    // 1. Inicializáljuk a routing node-okat
+    // 1. Megnézzük, Master-e vagy sima sáv
+    const isMaster = track.classList.contains('master-channel');
+
     if (!track.fxInputNode) {
         track.fxInputNode = audioCtx.createGain();
         track.fxOutputNode = audioCtx.createGain();
         track.fxChain = [];
 
-        if (track.classList.contains('master-channel')) {
-            if (typeof masterPanner !== 'undefined') {
-                masterPanner.disconnect();
-                masterPanner.connect(track.fxInputNode);
-                track.fxOutputNode.connect(masterAnalyser);
-            }
+        if (isMaster) {
+            masterPanner.disconnect();
+            masterPanner.connect(track.fxInputNode);
+            track.fxOutputNode.connect(masterAnalyser);
         } else {
             track.trackPannerNode.disconnect();
             track.trackPannerNode.connect(track.fxInputNode);
@@ -2724,15 +2724,23 @@ window.restoreFxChain = function(track, savedFxChain) {
         else if (pluginType === 'maximizer') { plugin = new BrickwallMaximizer(audioCtx); ui = createMaximizerUI(plugin); name = 'LMAX Limiter'; }
         else if (pluginType === 'sansamp') { plugin = new SansAmpDI(audioCtx); ui = createSansAmpUI(plugin); name = 'Sans 21 Bass Amp'; }
         else if (pluginType === 'darkglass') { plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'DG B7K Bass Amp'; }
+        // --- ÚJ PLUGINEK HOZZÁADÁSA A BETÖLTÉSHEZ ---
+       else if (pluginType === 'nycomp') { plugin = new NewYorkComp(audioCtx); ui = createNYCompUI(plugin); name = 'New York Comp'; }
+       else if (pluginType === 'widener') { plugin = new StereoWidener(audioCtx); ui = createWidenerUI(plugin); name = 'Stereo Widener'; }
+       else if (pluginType === 'softclip') { plugin = new SoftClipper(audioCtx); ui = createClipperUI(plugin); name = 'Soft Clipper'; }
+       else if (pluginType === 'proeq') { plugin = new ProFilterEQ(audioCtx); ui = createEQUI(plugin); name = 'Pro EQ'; }
 
         if (!plugin) return; // Ismeretlen típus esetén ugrás
 
         // 3. Visszaállítjuk a potmétereket (DSP és UI frissítés)
         if (fxData.params) {
-            let uiType = 'amp'; // Alapértelmezett UI stílus
-            if (['nv73', 'dbx', 'ssl'].includes(pluginType)) uiType = 'nv73';
-            else if (pluginType === 'la2a') uiType = 'la2a';
+            let uiType = 'amp'; // Alapértelmezett
+    
+            // Meghatározzuk a vizuális stílust (hogy a Hz/dB feliratok jók legyenek)
+            if (['nv73', 'dbx', 'ssl', 'proeq'].includes(pluginType)) uiType = 'nv73';
+            else if (pluginType === 'la2a' || pluginType === 'nycomp') uiType = 'la2a';
             else if (pluginType === 'tape') uiType = 'tape';
+            else if (pluginType === 'softclip' || pluginType === 'widener') uiType = 'amp';
 
             for (const [key, value] of Object.entries(fxData.params)) {
                 // Potméterek
