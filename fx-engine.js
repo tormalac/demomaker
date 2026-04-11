@@ -810,6 +810,56 @@ class DarkglassAmp {
     setClank(val) { this.clankEq.gain.value = (val - 50) / 2; } // Magas emelés
 }
 
+// --- Párhúzamos kompresszor ---
+class NewYorkComp {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // 1. Száraz ág (Direct signal)
+        this.dryGain = ctx.createGain();
+        this.dryGain.gain.value = 1.0;
+
+        // 2. Nedves ág (Compressed signal)
+        this.comp = ctx.createDynamicsCompressor();
+        this.comp.knee.value = 5;       // Keményebb térd a "punch" miatt
+        this.comp.attack.value = 0.003;  // Gyors attack
+        this.comp.release.value = 0.1;   // Gyors release az agresszív karakterhez
+        this.comp.ratio.value = 12;      // Magas ratio a New York stílushoz
+        
+        this.wetGain = ctx.createGain();
+        this.wetGain.gain.value = 0.0; // Alapból csak a tiszta jelet halljuk
+
+        // Routing
+        this.input.connect(this.dryGain);
+        this.input.connect(this.comp);
+        
+        this.dryGain.connect(this.output);
+        this.comp.connect(this.wetGain);
+        this.wetGain.connect(this.output);
+    }
+
+    setThreshold(val) {
+        // Poti: 0-100 -> -60dB-től 0dB-ig
+        this.comp.threshold.value = -60 + (val * 0.6);
+    }
+
+    setMix(val) {
+        // Val: 0-100 arány a Dry és Wet között
+        const mix = val / 100;
+        // Speciális New York görbe: a Dry-t nem halkítjuk el teljesen, 
+        // hogy megmaradjon a tranziensek ereje
+        this.dryGain.gain.value = 1.0; 
+        this.wetGain.gain.value = mix * 1.5; // Kicsit ráerősítünk a komprimált jelre
+    }
+
+    setGain(val) {
+        // Végső kimeneti hangerő
+        this.output.gain.value = Math.pow(10, (val - 50) / 40);
+    }
+}
+
 // --- 5. Vintage Tape Saturator ---
 class TapeSaturator {
     constructor(ctx) {
@@ -856,6 +906,110 @@ class TapeSaturator {
         // IPS (szalagsebesség): 15 ips jobban vágja a magasat és melegebb, 30 ips tisztább
         this.highRollOff.frequency.value = val === 15 ? 12000 : 18000;
         this.headBump.frequency.value = val === 15 ? 60 : 100;
+    }
+}
+
+// --- Pro EQ ---
+class ProFilterEQ {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        this.low = ctx.createBiquadFilter(); this.low.type = 'lowshelf';
+        this.mid = ctx.createBiquadFilter(); this.mid.type = 'peaking';
+        this.high = ctx.createBiquadFilter(); this.high.type = 'highshelf';
+
+        this.input.connect(this.low);
+        this.low.connect(this.mid);
+        this.mid.connect(this.high);
+        this.high.connect(this.output);
+
+        // Alapértékek
+        this.setLowFreq(100); this.setLowGain(0);
+        this.setMidFreq(1000); this.setMidGain(0); this.setMidQ(1);
+        this.setHighFreq(8000); this.setHighGain(0);
+    }
+
+    setLowFreq(v) { this.low.frequency.value = v; }
+    setLowGain(v) { this.low.gain.value = v; }
+    setMidFreq(v) { this.mid.frequency.value = v; }
+    setMidGain(v) { this.mid.gain.value = v; }
+    setMidQ(v) { this.mid.Q.value = v; }
+    setHighFreq(v) { this.high.frequency.value = v; }
+    setHighGain(v) { this.high.gain.value = v; }
+}
+
+// --- Widener ---
+class StereoWidener {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+
+        // Csatornák szétválasztása
+        this.splitter = ctx.createChannelSplitter(2);
+        this.merger = ctx.createChannelMerger(2);
+
+        // Késleltető a szélességhez (Haas-effektus)
+        this.delayL = ctx.createDelay(0.1);
+        this.delayR = ctx.createDelay(0.1);
+        
+        // Alaphelyzetben nincs szélesítés (0ms)
+        this.delayL.delayTime.value = 0;
+        this.delayR.delayTime.value = 0;
+
+        // Routing
+        this.input.connect(this.splitter);
+        
+        this.splitter.connect(this.delayL, 0); // Bal csatorna késleltetőre
+        this.splitter.connect(this.delayR, 1); // Jobb csatorna késleltetőre
+        
+        this.delayL.connect(this.merger, 0, 0);
+        this.delayR.connect(this.merger, 0, 1);
+        
+        this.merger.connect(this.output);
+    }
+
+    setWidth(val) {
+        // Val: 0-100. 0ms-tól 30ms-ig toljuk el a két oldalt egymástól
+        // 15-20ms környékén lesz a legütősebb a gitárfal!
+        const offset = (val / 100) * 0.03;
+        this.delayL.delayTime.setTargetAtTime(0, this.ctx.currentTime, 0.01);
+        this.delayR.delayTime.setTargetAtTime(offset, this.ctx.currentTime, 0.01);
+    }
+}
+
+// --- Soft Clipper ---
+class SoftClipper {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = ctx.createGain();
+        this.output = ctx.createGain();
+        this.shaper = ctx.createWaveShaper();
+        this.shaper.oversample = '4x'; // Nagyon fontos a torzítás minősége miatt!
+
+        this.input.connect(this.shaper);
+        this.shaper.connect(this.output);
+        this.setDrive(0);
+    }
+
+    setDrive(val) {
+        // Val: 0-100 -> Erősítés: 1x - 4x (0dB - +12dB)
+        const gain = 1 + (val / 33); 
+        this.input.gain.value = gain;
+        this.shaper.curve = this.makeCurve();
+    }
+
+    makeCurve() {
+        const n = 44100;
+        const curve = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+            let x = (i * 2) / n - 1;
+            // Soft clipping matek: tanh(x)
+            curve[i] = Math.tanh(x);
+        }
+        return curve;
     }
 }
 
@@ -1693,6 +1847,63 @@ function createDarkglassUI(pluginInstance) {
     return wrapper;
 }
 
+// --- NY Style Comp UI ---
+function createNYCompUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-la2a'; // A meglévő vázadat használjuk
+    wrapper.style.background = "#111";
+    wrapper.style.border = "2px solid #dcb37b"; // Arany keret
+    wrapper.innerHTML = `
+        <div class="la2a-header" style="color: #dcb37b;">NEW YORK COMP<span>PARALLEL PROCESSOR</span></div>
+        <div class="la2a-panel">
+            <div class="la2a-section">
+                <div class="knob-container">
+                    <div class="knob black" data-param="threshold" data-min="0" data-max="100" data-val="50"></div>
+                    <div class="knob-value">50</div>
+                    <div class="knob-label" style="color: #dcb37b;">SQUASH</div>
+                </div>
+            </div>
+            <div class="la2a-section">
+                <div class="knob-container">
+                    <div class="knob black" data-param="mix" data-min="0" data-max="100" data-val="0"></div>
+                    <div class="knob-value">0%</div>
+                    <div class="knob-label" style="color: #dcb37b;">MIX (WET)</div>
+                </div>
+            </div>
+            <div class="la2a-section">
+                <div class="knob-container">
+                    <div class="knob black" data-param="gain" data-min="0" data-max="100" data-val="50"></div>
+                    <div class="knob-value">0 dB</div>
+                    <div class="knob-label" style="color: #dcb37b;">OUT GAIN</div>
+                </div>
+            </div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
+// --- Stereo Widener UI ---
+function createWidenerUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-nv73'; 
+    wrapper.style.background = "linear-gradient(180deg, #0a0a0a 0%, #152025 100%)";
+    wrapper.style.borderTop = "6px solid #00ffd5";
+    wrapper.innerHTML = `
+        <div class="nv73-header">WIDTH WIZARD<span> STEREO IMAGER</span></div>
+        <div class="amp-panel" style="justify-content: center;">
+            <div class="knob-container">
+                <div class="knob blue" data-param="width" data-min="0" data-max="100" data-val="0"></div>
+                <div class="knob-value">0%</div>
+                <div class="knob-label">STEREO WIDTH</div>
+            </div>
+        </div>
+        <div style="font-size: 8px; color: #555; text-align: center; margin-top: 15px; font-family: monospace;">HAAS EFFECT PROCESSOR</div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
 // --- TAPE UI ---
 function createTapeUI(pluginInstance) {
     const wrapper = document.createElement('div');
@@ -1705,6 +1916,45 @@ function createTapeUI(pluginInstance) {
         </div>
     `;
     setupKnobs(wrapper, pluginInstance, 'tape');
+    return wrapper;
+}
+
+// soft clipper ui
+function createClipperUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-nv73'; // Használd a meglévő CSS osztályt
+    wrapper.style.borderTop = "6px solid #ff4c4c";
+    wrapper.innerHTML = `
+        <div class="nv73-header">SOFT CLIPPER<span> TAPE SAT</span></div>
+        <div class="amp-panel">
+            <div class="knob-container">
+                <div class="knob red" data-param="drive" data-min="0" data-max="100" data-val="0"></div>
+                <div class="knob-value">0</div>
+                <div class="knob-label">DRIVE / THRESH</div>
+            </div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'amp');
+    return wrapper;
+}
+
+// pro eq ui
+function createEQUI(pluginInstance) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-nv73'; 
+    wrapper.style.background = "#1a2a3a"; // Sötétkék FabFilter vibe
+    wrapper.innerHTML = `
+        <div class="nv73-header">PRO-Q3 <span>PARAMETRIC EQ</span></div>
+        <div class="nv73-panel">
+            <div class="nv73-section"><div class="knob-container"><div class="knob blue" data-param="lowGain" data-min="-15" data-max="15" data-val="0"></div><div class="knob-value">0</div><div class="knob-label">Low</div></div></div>
+            <div class="nv73-section">
+                <div class="knob-container"><div class="knob blue" data-param="midGain" data-min="-15" data-max="15" data-val="0"></div><div class="knob-value">0</div><div class="knob-label">Mid Gain</div></div>
+                <div class="knob-container"><div class="knob grey" data-param="midFreq" data-min="200" data-max="5000" data-val="1000"></div><div class="knob-value">1k</div><div class="knob-label">Mid Hz</div></div>
+            </div>
+            <div class="nv73-section"><div class="knob-container"><div class="knob blue" data-param="highGain" data-min="-15" data-max="15" data-val="0"></div><div class="knob-value">0</div><div class="knob-label">High</div></div></div>
+        </div>
+    `;
+    setupKnobs(wrapper, pluginInstance, 'nv73');
     return wrapper;
 }
 
@@ -2122,6 +2372,7 @@ const modalHTML = `
                             <button class="plugin-pick-btn" data-plugin="nv73">N73 Preamp</button>
                             <button class="plugin-pick-btn" data-plugin="la2a">L2A Comp</button>
                             <button class="plugin-pick-btn" data-plugin="dbx">db 160 Punch Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="nycomp">New York Comp</button>
                             <button class="plugin-pick-btn" data-plugin="zgate">Z-GATE</button>
                             <button class="plugin-pick-btn" data-plugin="ts808">TS808 OD</button>
                             <button class="plugin-pick-btn" data-plugin="muff">Big Fuzz</button>
@@ -2135,8 +2386,11 @@ const modalHTML = `
                             <button class="plugin-pick-btn" data-plugin="juno">Juno-60 Chorus</button>
                             <button class="plugin-pick-btn" data-plugin="lexicon">Lex 24 Digital Reverb</button>
                             <button class="plugin-pick-btn" data-plugin="spaceecho">RE-201 Space Echo</button>
-                            <button class="plugin-pick-btn" data-plugin="tape">Vintage Tape Sat</button>
-                            <button class="plugin-pick-btn" data-plugin="ssl">S2L Master Bus Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="proeq">Pro EQ</button>
+                            <button class="plugin-pick-btn" data-plugin="ssl">2SL Master Bus Comp</button>
+                            <button class="plugin-pick-btn" data-plugin="widener">Stereo Widener</button>
+                            <button class="plugin-pick-btn" data-plugin="tape">Vintage Tape Sat</button>                            
+                            <button class="plugin-pick-btn" data-plugin="softclip">Soft Clipper</button>                            
                             <button class="plugin-pick-btn" data-plugin="maximizer">LMAX Brickwall Limiter</button>
                         </div>
                     </div>
@@ -2264,6 +2518,14 @@ document.addEventListener('click', (e) => {
             plugin = new SansAmpDI(audioCtx); ui = createSansAmpUI(plugin); name = 'Sans 21 Bass Amp';
         } else if (pluginType === 'darkglass') {
             plugin = new DarkglassAmp(audioCtx); ui = createDarkglassUI(plugin); name = 'DG B7K Bass Amp';
+        } else if (pluginType === 'softclip') {
+            plugin = new SoftClipper(audioCtx); ui = createClipperUI(plugin); name = 'Soft Clipper';
+        } else if (pluginType === 'proeq') {
+            plugin = new ProFilterEQ(audioCtx); ui = createEQUI(plugin); name = 'Pro EQ';
+        } else if (pluginType === 'nycomp') {
+            plugin = new NewYorkComp(audioCtx); ui = createNYCompUI(plugin); name = 'New York Comp';
+        } else if (pluginType === 'widener') {
+            plugin = new NewYorkComp(audioCtx); ui = createWidenerUI(plugin); name = 'Stereo Widener';
         }
         
         track.fxChain.push({ name, type: pluginType, instance: plugin, ui });
