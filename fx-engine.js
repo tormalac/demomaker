@@ -137,6 +137,10 @@ fxStyles.innerHTML = `
         overflow: auto;
     }
 
+    .fx-plugin-area > div {
+        margin: auto;
+    }
+
     /* --- MOBIL NÉZET --- */
     @media (max-width: 768px) {
         .fx-body {
