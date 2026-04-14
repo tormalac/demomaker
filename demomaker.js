@@ -1359,31 +1359,85 @@ function openPianoRoll(clip) {
     let isDrawingPR = false;
     let currentPRNote = null;
     
-    const stopDrawing = () => { isDrawingPR = false; currentPRNote = null; };
+    // Változók a mobilos okos görgetéshez
+    let prTouchStartY = 0;
+    let prTouchStartX = 0;
+    let prScrollStart = 0;
+    let prIsScrolling = false;
+    
+    const stopDrawing = () => { 
+        isDrawingPR = false; 
+        currentPRNote = null; 
+        prIsScrolling = false;
+    };
     document.addEventListener('mouseup', stopDrawing);
     document.addEventListener('touchend', stopDrawing);
 
-    // --- ÚJ KÓD: Mobilos (érintőkijelzős) hangjegy nyújtás ---
+    // 1. Megjegyezzük, hol érintette meg a képernyőt
+    seqGrid.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            prTouchStartY = e.touches[0].clientY;
+            prTouchStartX = e.touches[0].clientX;
+            prScrollStart = seqGrid.scrollTop;
+            prIsScrolling = false;
+        }
+    }, {passive: true});
+
+    // 2. Érintés mozgatása (okos döntés: rajzolás vagy görgetés?)
     seqGrid.addEventListener('touchmove', (e) => {
         if (e.touches.length > 1) {
-            isDrawingPR = false; // Ha két ujjal akar görgetni, megszakítjuk a rajzolást
+            isDrawingPR = false; 
             return; 
         }
-        if (!isDrawingPR || !currentPRNote) return;
-        
-        e.preventDefault(); // Megakadályozzuk az oldal görgetését rajzolás (1 ujj) közben
         
         const touch = e.touches[0];
-        const elem = document.elementFromPoint(touch.clientX, touch.clientY); // Megnézzük mi van az ujjunk alatt
+        const deltaY = Math.abs(touch.clientY - prTouchStartY);
+        const deltaX = Math.abs(touch.clientX - prTouchStartX);
+
+        // Ha főleg függőlegesen mozdította az ujját, akkor GÖRGETNI akar
+        if (!prIsScrolling && deltaY > 10 && deltaY > deltaX) {
+            prIsScrolling = true;
+            isDrawingPR = false; // Megszakítjuk a rajzolást
+            
+            // Takarítás: Ha a letapintás pillanatában lerakott egy véletlen hangot, azt töröljük!
+            if (currentPRNote) {
+                const noteToRemove = currentPRNote.note;
+                const idx = clip.patternData.notes.indexOf(currentPRNote);
+                if (idx > -1) clip.patternData.notes.splice(idx, 1);
+                currentPRNote = null;
+                
+                drawPattern(clip.querySelector('canvas'), clip, trackColor);
+                
+                // Tisztítjuk a cellák vizuális állapotát abban a sorban
+                const cells = seqGrid.querySelectorAll(`.pr-cell[data-note="${noteToRemove}"]`);
+                cells.forEach(c => {
+                    const t = parseFloat(c.dataset.time);
+                    const active = clip.patternData.notes.some(n => n.note === noteToRemove && t >= n.start - 0.001 && t < n.start + n.duration - 0.001);
+                    if (!active) c.classList.remove('active', 'note-start');
+                });
+            }
+        }
+
+        // Ha görgető módban vagyunk, kézzel mozgatjuk a dobozt
+        if (prIsScrolling) {
+            seqGrid.scrollTop = prScrollStart - (touch.clientY - prTouchStartY);
+            e.preventDefault(); // Megakadályozzuk az oldal frissítését (pull-to-refresh)
+            return;
+        }
+
+        // --- INNENTŐL JÖN AZ EREDETI HANGJEGY NYÚJTÁS LOGIKA (Vízszintes mozgásnál) ---
+        if (!isDrawingPR || !currentPRNote) return;
+        
+        e.preventDefault(); // Ne ugorjon el a képernyő rajzolás közben
+        
+        const elem = document.elementFromPoint(touch.clientX, touch.clientY);
         
         if (elem && elem.classList.contains('pr-cell')) {
-            // Ellenőrizzük, hogy ugyanabban a sorban (hangmagasságon) húzzuk-e
             if (elem.dataset.note == currentPRNote.note) {
                 const noteTime = parseFloat(elem.dataset.time);
                 if (noteTime > currentPRNote.start) {
                     currentPRNote.duration = (noteTime - currentPRNote.start) + secPerStep;
                     
-                    // Vizuálisan frissítjük az összes cellát a sorban (hogy ha gyorsan húzzuk az ujjunkat, ne maradjon ki lyuk)
                     Array.from(elem.parentElement.children).forEach((c, idx) => {
                         const t = idx * secPerStep;
                         const active = t >= currentPRNote.start - 0.001 && t < currentPRNote.start + currentPRNote.duration - 0.001;
