@@ -138,7 +138,9 @@ fxStyles.innerHTML = `
     }
 
     .fx-plugin-area > div {
-        margin: auto;
+        display: inline-block; 
+        text-align: left;
+        margin: 0 auto;
     }
 
     /* --- MOBIL NÉZET --- */
