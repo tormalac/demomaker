@@ -753,7 +753,8 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
     z-index: 500;
     
     align-items: center;    
-    justify-content: center;    
+    justify-content: center;  
+    padding-top: 80px;  
     padding-bottom: 20px;
     box-sizing: border-box;
     backdrop-filter: blur(3px);
@@ -769,18 +770,20 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
     display: flex;
     flex-direction: column;
     box-shadow: 0 10px 50px rgba(0,0,0,0.8);
-    max-height: 95vh;
+    max-height: calc(100vh - 120px);
     overflow: hidden;
     display: flex;
     flex-direction: column; 
 }
 
 #seq-grid {
-    flex: 1;
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-radius: 4px;
     overflow-y: auto;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 4px; 
+    overflow-x: auto; /* <-- Vízszintes görgetés engedélyezése */
+    -webkit-overflow-scrolling: touch; /* Sima görgetés mobilon */
+    max-height: 500px; 
 }
 
 #editor-play-btn {
@@ -1680,7 +1683,7 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 
 .pr-row {
     display: flex;
-    height: 22px;
+    height: 44px;
     border-bottom: 1px solid #1a1a1a;
 }
 
@@ -1691,7 +1694,7 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 
 .pr-key {
     width: 60px;
-    font-size: 10px;
+    font-size: 12px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -1716,12 +1719,14 @@ body.editor-active-ui .control-panel > *:not(.play-btn):not(.play-time-btn) {
 .pr-grid {
     display: flex;
     flex: 1;
+    min-width: max-content;
 }
 
 /* Maga a cella, ahova a hangjegyet rajzolod */
 .pr-cell {
     flex: 1;
     border-right: 1px solid #1a1a1a;
+    min-width: 35px;
     cursor: crosshair; /* Kereszt kurzor jelzi, hogy rajzolni lehet */
     background: transparent;
     box-sizing: border-box;
