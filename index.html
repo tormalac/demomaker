@@ -621,7 +621,15 @@ window.loadProject = async function(projectData) {
 
         newTrack.querySelector('.track-name').textContent = tData.name || "Track";
         if (mixerChan) mixerChan.querySelector('.mix-header').textContent = tData.name || "Track";
-        newTrack.dataset.preset = tData.preset || '';
+        const defaultPresets = {
+            'drum': 'TR-808 (Deep)',
+            'bass': 'Precision Bass (Punchy)',
+            'guitar': 'Telecaster (Twang)',
+            'synth': 'Classic Saw',
+            'vocal': 'Acoustic Piano', 
+            'sample': 'Acoustic Piano'
+        };
+        newTrack.dataset.preset = tData.preset || defaultPresets[tData.type] || 'Classic Saw';
 
         const volSlider = newTrack.querySelector('.trk-vol-slider');
         if (volSlider && tData.vol !== undefined) {
@@ -726,6 +734,18 @@ window.loadProject = async function(projectData) {
     if (projectData.masterFx && projectData.masterFx.length > 0) {
         const masterTrack = document.querySelector('.master-channel');
         if (masterTrack && typeof window.restoreFxChain === 'function') {
+            // Inicializáljuk a Master FX node-okat, ha még nincsenek
+            if (!masterTrack.fxInputNode) {
+                masterTrack.fxInputNode = audioCtx.createGain();
+                masterTrack.fxOutputNode = audioCtx.createGain();
+            
+                // ROUTING: Panner -> [FX] -> Analyser
+                masterPanner.disconnect();
+                masterPanner.connect(masterTrack.fxInputNode);
+                masterTrack.fxOutputNode.connect(masterAnalyser);
+            }
+        
+            // Visszatöltjük a láncot
             window.restoreFxChain(masterTrack, projectData.masterFx);
         }
     }
