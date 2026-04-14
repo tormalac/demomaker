@@ -822,6 +822,7 @@ function createTrack(type) {
     const track = document.createElement('div');
     track.className = `track-container ${type}`;
     track.dataset.trackId = trackId;
+    track.dataset.preset = defaultPresets[type] || 'Classic Saw';
 
     track.innerHTML = `
       <div class="track-inspector">
@@ -1305,9 +1306,24 @@ function openPianoRoll(clip) {
             <option value="8-Bit Square">8-Bit Square</option>`;
     }
     
-    presetSelector.value = trackContainer.dataset.preset || (isGuitar ? 'Telecaster (Twang)' : (isBass ? 'Precision Bass (Punchy)' : 'Acoustic Piano'));
-    presetSelector.onchange = (e) => { trackContainer.dataset.preset = e.target.value; };
+    // --- JAVÍTÁS: Okos preset ellenőrzés (hogy sose legyen üres a mező) ---
+    let defaultPreset = 'Acoustic Piano';
+    if (isGuitar) defaultPreset = 'Telecaster (Twang)';
+    else if (isBass) defaultPreset = 'Precision Bass (Punchy)';
+    else if (isSynth) defaultPreset = 'Classic Saw';
 
+    let savedPreset = trackContainer.dataset.preset;
+    
+    // Megnézzük, hogy a betöltött preset egyáltalán létezik-e az opciók között
+    const optionExists = Array.from(presetSelector.options).some(opt => opt.value === savedPreset);
+    
+    if (!savedPreset || !optionExists) {
+        savedPreset = defaultPreset;
+        trackContainer.dataset.preset = savedPreset; // Ha rossz volt, azonnal kijavítjuk a sávon is!
+    }
+    
+    presetSelector.value = savedPreset;
+    presetSelector.onchange = (e) => { trackContainer.dataset.preset = e.target.value; };
     // ... innen jön a korábbi pianoNotes
 
     let startOct = 4, endOct = 2;
@@ -1346,6 +1362,47 @@ function openPianoRoll(clip) {
     const stopDrawing = () => { isDrawingPR = false; currentPRNote = null; };
     document.addEventListener('mouseup', stopDrawing);
     document.addEventListener('touchend', stopDrawing);
+
+    // --- ÚJ KÓD: Mobilos (érintőkijelzős) hangjegy nyújtás ---
+    seqGrid.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 1) {
+            isDrawingPR = false; // Ha két ujjal akar görgetni, megszakítjuk a rajzolást
+            return; 
+        }
+        if (!isDrawingPR || !currentPRNote) return;
+        
+        e.preventDefault(); // Megakadályozzuk az oldal görgetését rajzolás (1 ujj) közben
+        
+        const touch = e.touches[0];
+        const elem = document.elementFromPoint(touch.clientX, touch.clientY); // Megnézzük mi van az ujjunk alatt
+        
+        if (elem && elem.classList.contains('pr-cell')) {
+            // Ellenőrizzük, hogy ugyanabban a sorban (hangmagasságon) húzzuk-e
+            if (elem.dataset.note == currentPRNote.note) {
+                const noteTime = parseFloat(elem.dataset.time);
+                if (noteTime > currentPRNote.start) {
+                    currentPRNote.duration = (noteTime - currentPRNote.start) + secPerStep;
+                    
+                    // Vizuálisan frissítjük az összes cellát a sorban (hogy ha gyorsan húzzuk az ujjunkat, ne maradjon ki lyuk)
+                    Array.from(elem.parentElement.children).forEach((c, idx) => {
+                        const t = idx * secPerStep;
+                        const active = t >= currentPRNote.start - 0.001 && t < currentPRNote.start + currentPRNote.duration - 0.001;
+                        const start = Math.abs(t - currentPRNote.start) < 0.001;
+                        
+                        if (active) {
+                            c.classList.add('active');
+                            if (start) c.classList.add('note-start');
+                            else c.classList.remove('note-start');
+                        } else {
+                            c.classList.remove('active', 'note-start');
+                        }
+                    });
+                    
+                    drawPattern(clip.querySelector('canvas'), clip, trackColor);
+                }
+            }
+        }
+    }, {passive: false});
 
     pianoNotes.forEach(key => {
         const row = document.createElement('div');
@@ -1412,7 +1469,14 @@ function openPianoRoll(clip) {
             cell.addEventListener('mouseenter', () => {
                 if (isDrawingPR && currentPRNote && noteTime > currentPRNote.start) {
                     currentPRNote.duration = (noteTime - currentPRNote.start) + secPerStep;
-                    cell.classList.add('active');
+                    
+                    // Frissítjük a közbenső cellákat asztali nézetben is
+                    Array.from(stepsContainer.children).forEach((c, idx) => {
+                        const t = idx * secPerStep;
+                        const active = t >= currentPRNote.start - 0.001 && t < currentPRNote.start + currentPRNote.duration - 0.001;
+                        if (active) c.classList.add('active');
+                    });
+                    
                     drawPattern(clip.querySelector('canvas'), clip, trackColor);
                 }
             });
@@ -1877,9 +1941,10 @@ const bpmInput = document.querySelector('.bpm-input');
     bpmInput.value = bpmInput.value.replace(/\D/g, '');
 });*/
 
+/*
 bpmInput.addEventListener('change', (e) => {
     setBpm(e.target.value);
-});
+});*/
 
 
 bpmInput.addEventListener('change', () => {
@@ -1921,6 +1986,9 @@ bpmInput.addEventListener('change', () => {
             if (clip.patternData && clip.patternData.notes) {
                 clip.patternData.notes.forEach(note => {
                     note.start = note.start * ratio;
+                    if (note.duration) {
+                        note.duration = note.duration * ratio;
+                    }
                 });
             }
 
@@ -3900,13 +3968,21 @@ window.serializeProject = async function(isCloudSave = false) {
     // --- MASTER SÁV FX MENTÉSE ---
     const masterTrack = document.querySelector('.master-channel');
     if (masterTrack && masterTrack.fxChain) {
-        snapshot.masterFx = [];
+        snapshot.masterFx = []; // Létrehozunk egy külön szekciót a masternek
         masterTrack.fxChain.forEach(fxItem => {
-            const pluginState = { type: fxItem.type, name: fxItem.name, params: {} };
-            fxItem.ui.querySelectorAll('.knob').forEach(knob => { pluginState.params[knob.dataset.param] = knob.dataset.val; });
-            const toggle = fxItem.ui.querySelector('.toggle-switch');
-            if (toggle) pluginState.params['mode'] = toggle.dataset.val;
-            fxItem.ui.querySelectorAll('.max-slider').forEach(slider => { pluginState.params[slider.id] = slider.value; });
+            const pluginState = { 
+                type: fxItem.type, 
+                name: fxItem.name, 
+                params: {} 
+            };
+            // Potméterek mentése
+            fxItem.ui.querySelectorAll('.knob').forEach(knob => { 
+                pluginState.params[knob.dataset.param] = knob.dataset.val; 
+            });
+            // Egyéb vezérlők (pl. Maximizer slider)
+            fxItem.ui.querySelectorAll('.max-slider').forEach(slider => {
+                pluginState.params[slider.id] = slider.value;
+            });
             snapshot.masterFx.push(pluginState);
         });
     }
